@@ -1,60 +1,89 @@
-import "backbone";
-import $ from "jquery";
-
-import * as joint from "jointjs/dist/joint";
-
-import "../editor/editorManager";
-import "../editor/editorScroller";
-import "../editor/editorActions";
-import "../editor/elementActions";
-import "../editor/elementSelector";
-
-import shapes from "../../joint/shapes";
-joint.shapes.erd = shapes;
-
 import angular from "angular";
 import template from "./nosql.html";
-
-import modelDuplicatorComponent from "../components/duplicateModelModal";
+import sqlGeneratorService from "../service/sqlGeneratorService";
+import sqlGeneratorModal from "../components/sqlGeneratorModal";
+import duplicateModelModal from "../components/duplicateModelModal";
 import shareModelModal from "../components/shareModelModal";
+import queryExpressionModal from "../components/queryExpressionModal";
+import sqlComparasionDropdown from "../components/sqlComparasionDropdown";
 import statusBar from "../components/statusBar";
-
-import KeyboardController, { types } from "../components/keyboardController";
-import ToolsViewService from "../service/toolsViewService";
 import preventExitServiceModule from "../service/preventExitService";
-import iconConceptual from  "../components/icons/conceptual";
+import view from "../view/view";
+import columnForm from "./columnForm";
+import checkConstraint from "./checkConstraint";
+import sidebarControlLogical from "./sidebarControl";
+import iconLogic from  "../components/icons/logic";
 import supportBannersList from "../components/supportBannersList";
 
-const controller = function (ModelAPI, $stateParams, $rootScope, $timeout, $uibModal, $state, $transitions, preventExitService, $filter) {
+const controller = function (
+	$rootScope,
+	$stateParams,
+	ModelAPI,
+	LogicService,
+	$uibModal,
+	$state,
+	$timeout,
+	SqlGeneratorService,
+	$filter,
+	preventExitService,
+	$transitions
+) {
+
 	const ctrl = this;
+
 	ctrl.modelState = {
 		isDirty: false,
 		updatedAt: new Date(),
 	};
+	ctrl.model = LogicService.model;
+	ctrl.selectedName = "";
+	ctrl.selectedElement = null;
+	ctrl.columns = [];
+	ctrl.editionVisible = true;
+	ctrl.tableNames = [];
+	ctrl.mapTables = {};
+
+	ctrl.selectedLink = null;
+
+	ctrl.addColumnVisible = false;
+	ctrl.editColumnVisible = false;
+
 	ctrl.feedback = {
 		message: "",
-		showing: false
+		showing: false,
+		type: "success"
 	}
-	ctrl.loading = true;
-	ctrl.model = {
-		id: '',
-		name: '',
-		type: 'conceptual',
-		model: '',
-		user: $rootScope.loggeduser
+
+	ctrl.print = function () {
+		window.print();
 	}
-	ctrl.selectedElement = {};
-	const configs = {
-		graph: {},
-		paper: {},
-		editorActions: {},
-		keyboardController: null,
-		selectedElementActions: null
-	};
 
 	const setIsDirty = (isDirty) => {
 		ctrl.modelState.isDirty = isDirty;
 	};
+
+	ctrl.$onInit = () => {
+		ctrl.setLoading(true);
+		LogicService.buildWorkspace($stateParams.references.modelid, $rootScope.loggeduser, ctrl.stopLoading, $stateParams.references.conversionId);
+	}
+
+	ctrl.showFeedback = function (newMessage, show, type) {
+		ctrl.feedback.message = $filter('translate')(newMessage);
+		ctrl.feedback.showing = show;
+		ctrl.feedback.type = type;
+	}
+
+	ctrl.stopLoading = function () {
+		ctrl.setLoading(false);
+	}
+
+	ctrl.saveModel = function () {
+		setIsDirty(false);
+		ctrl.modelState.updatedAt = new Date();
+		LogicService.updateModel().then(function (res) {
+			ctrl.showFeedback("Successfully saved!", true, "success");
+		});
+	}
 
 	ctrl.setLoading = (show) => {
 		$timeout(() => {
@@ -62,74 +91,119 @@ const controller = function (ModelAPI, $stateParams, $rootScope, $timeout, $uibM
 		});
 	}
 
-	ctrl.showFeedback = (show, newMessage) => {
+	$rootScope.$on('clean:logic:selection', function () {
+		ctrl.showFeedback("", false);
+	});
+
+	$rootScope.$on('element:select', function (event, element) {
 		$timeout(() => {
-			ctrl.feedback.showing = show;
-			ctrl.feedback.message = $filter('translate')(newMessage);
+			ctrl.selectedLink = null;
+			ctrl.selectedElement = element;
 		});
-	}
+	});
 
-	ctrl.saveModel = () => {
-		ctrl.modelState.updatedAt = new Date();
+	$rootScope.$on('columns:select', function (event, columns) {
+		$timeout(() => {
+			ctrl.addColumnVisible = false;
+			ctrl.columns = [];
+			if(columns != null) {
+				for (var i = 0; i < columns.length; i++) {
+					columns[i].expanded = false;
+					ctrl.columns.push(columns[i]);
+				}
+				ctrl.columns = columns;
+			}
+		});
+	});
+
+	$rootScope.$on('element:update', function (event, element) {
+		$timeout(() => {
+			if(element != null && element.update != null) {
+				element.update();
+			}
+			if(element != null && element.resize != null) {
+				element.resize();
+			}
+			element.updateSize();
+		});
+	});
+
+	$rootScope.$on('model:saved', () => {
 		setIsDirty(false);
-		ctrl.setLoading(true);
-		ctrl.model.model = JSON.stringify(configs.graph);
-		ModelAPI.updateModel(ctrl.model).then(function (res) {
-			ctrl.showFeedback(true, "Successfully saved!");
-			ctrl.setLoading(false);
+		ctrl.modelState.updatedAt = new Date();
+		$timeout(() => {
+			ctrl.showFeedback("Successfully saved!", true, "success");
 		});
+	});
+
+	$rootScope.$on('link:select', function (event, selectedLink) {
+		$timeout(() => {
+			ctrl.selectedElement = null;
+			ctrl.selectedLink = selectedLink;
+		});
+	});
+
+	$rootScope.$on("element:isDirty", function () {
+		setIsDirty(true);
+	});
+
+	$rootScope.$on("model:loaded", function (_, model) {
+		ctrl.modelState.updatedAt = model.updated ?? new Date();
+	});
+
+	$rootScope.$on("model:loaderror", function (_, error) {
+		if(error.status == 404 || error.status == 401) {
+			$state.go("noaccess");
+		}
+	});
+
+	$rootScope.$on("model:warning-copy", function () {
+		$timeout(() => {
+			ctrl.showFeedback("Copy is not allowed on this module when element has references.", true, "warning");
+		});
+	});
+
+	ctrl.updateCardA = function (card) {
+		LogicService.editCardinalityA(card);
 	}
 
-	ctrl.print = () => {
-		window.print();
+	ctrl.updateCardB = function (card) {
+		LogicService.editCardinalityB(card);
 	}
 
-	ctrl.undoModel = () => {
-		configs.editorActions.undo();
+	ctrl.undoModel = function () {
+		LogicService.undo();
 	}
 
-	ctrl.redoModel = () => {
-		configs.editorActions.redo();
+	ctrl.redoModel = function () {
+		LogicService.redo();
 	}
 
-	ctrl.zoomIn = () => {
-		configs.editorScroller.zoom(0.1, { max: 2 });
+	ctrl.zoomIn = function () {
+		LogicService.zoomIn();
 	}
 
-	ctrl.zoomOut = () => {
-		configs.editorScroller.zoom(-0.1, { min: 0.2 });
+	ctrl.zoomOut = function () {
+		LogicService.zoomOut();
 	}
 
-	ctrl.zoomNone = () => {
-		configs.editorScroller.zoom();
+	ctrl.zoomNone = function () {
+		LogicService.zoomNone();
 	}
 
-	ctrl.duplicateModel = (model) => {
-		const modalInstance = $uibModal.open({
+	ctrl.generateSQL = function () {
+		const sql = SqlGeneratorService.generate(LogicService.buildTablesJson(), LogicService.loadViews());
+
+		$uibModal.open({
 			animation: true,
-			template: '<duplicate-model-modal suggested-name="$ctrl.suggestedName" close="$close(result)" dismiss="$dismiss(reason)"></duplicate-model-modal>',
+			template: '<sql-generator-modal sql="$ctrl.sql" close="$close(result)" dismiss="$dismiss(reason)"></sql-generator-modal>',
 			controller: function () {
 				const $ctrl = this;
-				$ctrl.suggestedName = $filter('translate')('MODEL_NAME (copy)', { name: model.name });
+				$ctrl.sql = sql;
 			},
 			controllerAs: '$ctrl',
 		});
-		modalInstance.result.then((newName) => {
-			ctrl.setLoading(true);
-			const duplicatedModel = {
-				id: "",
-				name: newName,
-				type: model.type,
-				model: model.model,
-				user: model.who,
-			};
-			ModelAPI.saveModel(duplicatedModel).then((newModel) => {
-				window.open($state.href('conceptual', { 'modelid': newModel._id }));
-				ctrl.showFeedback(true, "Successfully duplicated!");
-				ctrl.setLoading(false);
-			});
-		});
-	};
+	}
 
 	ctrl.duplicateModel = (model) => {
 		const modalInstance = $uibModal.open({
@@ -144,31 +218,19 @@ const controller = function (ModelAPI, $stateParams, $rootScope, $timeout, $uibM
 			controller: function() {
 				const $ctrl = this;
 				$ctrl.suggestedName = $filter('translate')("MODEL_NAME (copy)", { name: model.name });
-				$ctrl.modelId = model._id;
-				$ctrl.userId = model.who;
+				$ctrl.modelId = model.id;
+				$ctrl.userId = model.user;
 			},
 			controllerAs: '$ctrl',
 		}).result;
 		modalInstance.then((newModel) => {
 			window.open($state.href('logic', { references: { 'modelid': newModel._id } }));
-			ctrl.showFeedback(true, "Successfully duplicated!");
+			ctrl.showFeedback("Successfully duplicated!", true, 'success');
 		}).catch(error => {
 			console.error(error);
 		});
 	};
 
-	ctrl.convertModel = (conceptualModel) => {
-		const model = {
-			"name": conceptualModel.name + $filter('translate')("_converted"),
-			"user": $rootScope.loggeduser,
-			"type": "logic",
-			"model": '{"cells":[]}'
-		};
-		ModelAPI.saveModel(model)
-			.then((newModel) => {
-				window.open($state.href('logic', { references: { 'modelid': newModel._id, 'conversionId': conceptualModel._id } }), '_blank');
-			});
-	}
 
 	ctrl.shareModel = (model) => {
 		const modalInstance = $uibModal.open({
@@ -178,218 +240,56 @@ const controller = function (ModelAPI, $stateParams, $rootScope, $timeout, $uibM
 			template: '<share-model-modal close="$close(result)" dismiss="$dismiss()" model-id="$ctrl.modelId"></share-model-modal>',
 			controller: function() {
 				const $ctrl = this;
-				$ctrl.modelId = model._id;
+				$ctrl.modelId = model.id;
 			},
 			controllerAs: '$ctrl',
 		}).result;
 		modalInstance.then(() => {
-			ctrl.showFeedback(true, $filter('translate')("Sharing configuration has been updated successfully!"));
+			ctrl.showFeedback($filter('translate')("Sharing configuration has been updated successfully!"), true, "success");
 		}).catch((reason) => {
 			console.log("Modal dismissed with reason", reason);
 		});
 	};
 
-	ctrl.unselectAll = () => {
-		ctrl.showFeedback(false, "");
-		ctrl.onSelectElement(null);
-		if(configs.selectedElementActions != null) {
-			configs.selectedElementActions.remove();
-			configs.selectedElementActions = null;
-		}
-	}
-
-	ctrl.onSelectElement = (cellView) => {
-		if (cellView != null) {
-			configs.elementSelector.cancel();
-			$timeout(() => {
-				const elementType = cellView.model.isLink() ? "Link" : cellView.model.attributes.supertype;
-				ctrl.selectedElement = {
-					value: cellView.model.attributes?.attrs?.text?.text,
-					type: elementType,
-					element: cellView
-				}
-			});
-			return
-		}
-
-		$timeout(() => {
-			ctrl.selectedElement = {
-				value: "",
-				type: "blank",
-				element: null
-			}
-		});
-	}
-
-	ctrl.onUpdate = (event) => {}
-
-	const registerPaperEvents = (paper) => {
-		paper.on('blank:pointerdown', (evt) => {
-			ctrl.unselectAll();
-			if(!configs.keyboardController.spacePressed){
-				configs.elementSelector.start(evt);
-			} else {
-				configs.editorScroller.startPanning(evt);
-			}
-			configs.elementSelector.setCopyContext(evt);
-		});
-
-		paper.on('link:options', (cellView) => {
-			ctrl.onSelectElement(cellView);
-		});
-
-		paper.on('element:pointerup', (cellView, evt, x, y) => {
-			ctrl.onSelectElement(cellView);
-
-			const elementActions = new joint.ui.ElementActions({
-				cellView: cellView,
-				boxContent: false
-			});
-
-			configs.selectedElementActions = elementActions;
-			elementActions.on('action:link:add', function (link) {
-			});
-
-			elementActions.render();
-		});
-
-		paper.on('element:pointerdblclick', () => {
-			$rootScope.$broadcast("command:openmenu");
-		});
-
-		configs.paper.on('link:mouseenter', (linkView) => {
-			const conectionType = ctrl.shapeLinker.getConnectionTypeFromLink(linkView.model);
-			const toolsView = ctrl.toolsViewService.getToolsView(conectionType);
-			linkView.addTools(toolsView);
-		});
-
-		configs.paper.on('link:mouseleave', (linkView) => {
-			linkView.removeTools();
-		});
-	}
-
-	const registerShortcuts = () => {
-		configs.keyboardController.registerHandler(types.SAVE, () => ctrl.saveModel());
-		configs.keyboardController.registerHandler(types.UNDO, () => ctrl.undoModel());
-		configs.keyboardController.registerHandler(types.REDO, () => ctrl.redoModel());
-		configs.keyboardController.registerHandler(types.ZOOM_IN, () => ctrl.zoomIn());
-		configs.keyboardController.registerHandler(types.ZOOM_OUT, () => ctrl.zoomOut());
-		configs.keyboardController.registerHandler(types.ZOOM_NONE, () => ctrl.zoomNone());
-		configs.keyboardController.registerHandler(types.ESC, () => ctrl.unselectAll());
-		configs.keyboardController.registerHandler(types.COPY, () => configs.elementSelector.copyAll());
-		configs.keyboardController.registerHandler(types.PASTE, () => configs.elementSelector.pasteAll());
-		configs.keyboardController.registerHandler(types.DELETE, () => configs.elementSelector.deleteAll() );
-	}
-
-	const registerGraphEvents = (graph) => {
-		graph.on("change", () => {
-			setIsDirty(true);
-		});
-
-		graph.on("remove", () => {
-			setIsDirty(true);
-		});
-
-		graph.on('change:position', function (cell) {
-		});
-
-		graph.on('add', (model) => {
-			setIsDirty(true);
-			if (model instanceof joint.dia.Link) return;
-		});
-
-	}
-
-	const buildWorkspace = () => {
-		configs.graph = new joint.dia.Graph({}, { cellNamespace: joint.shapes });
-
-		registerGraphEvents(configs.graph);
-
-		const content = $("#content");
-
-		configs.paper = new joint.dia.Paper({
-			width: content.width(),
-			height: content.height(),
-			gridSize: 10,
-			drawGrid: true,
-			model: configs.graph,
-			linkConnectionPoint: joint.util.shapePerimeterConnectionPoint,
-			cellViewNamespace: joint.shapes,
-			linkPinning: false
-		});
-
-		configs.keyboardController = new KeyboardController(configs.paper.$document);
-
-		registerPaperEvents(configs.paper);
-
-		configs.editorScroller = new joint.ui.EditorScroller({
-			paper: configs.paper,
-			cursor: "grabbing",
-			autoResizePaper: true,
-		});
-		content.append(configs.editorScroller.render().el);
-
-		const enditorManager = new joint.ui.EditorManager({
-			graph: configs.graph,
-			paper: configs.paper,
-		});
-
-		configs.editorActions = new joint.ui.EditorActions({ graph: configs.graph, paper: configs.paper });
-
-		$(".elements-holder").append(enditorManager.render().el);
-
-		configs.elementSelector = new joint.ui.ElementSelector({ paper: configs.paper, graph: configs.graph, model: new Backbone.Collection });
-
-		enditorManager.loadElements([
-		]);
-
-		registerShortcuts();
-	};
-
-	ctrl.$postLink = () => {
-		buildWorkspace();
-	};
-
-	ctrl.$onInit = () => {
-		ctrl.toolsViewService = new ToolsViewService();
-		ctrl.setLoading(true);
-		ModelAPI.getModel($stateParams.modelid, $rootScope.loggeduser).then((resp) => {
-			const jsonModel = (typeof resp.data.model == "string") ? JSON.parse(resp.data.model) : resp.data.model;
-			ctrl.model = resp.data;
-			ctrl.model.id = resp.data._id;
-			ctrl.model.model = jsonModel;
-			configs.graph.fromJSON(jsonModel);
-			ctrl.modelState.updatedAt = resp.data.updated
-			ctrl.setLoading(false);
-		}).catch((error) => {
-			if(error.status == 404 || error.status == 401) {
-				$state.go("noaccess");
-			}
-		});
-	}
-
 	window.onbeforeunload = preventExitService.handleBeforeUnload(ctrl);
-	const onBeforeDeregister = $transitions.onBefore({}, preventExitService.handleTransitionStart(ctrl, "conceptual"));
-	const onExitDeregister = $transitions.onExit({}, preventExitService.cleanup(ctrl))
+
+	const onBeforeDeregister = $transitions.onBefore({},
+		preventExitService.handleTransitionStart(ctrl, "logic")
+	);
+
+	const onExitDeregister = $transitions.onExit({}, preventExitService.cleanup(ctrl));
 
 	ctrl.$onDestroy = () => {
-		configs.graph = null;
-		configs.paper = null;
-		configs.keyboardController.unbindAll();
-		configs.keyboardController = null;
-		preventExitService.cleanup(ctrl)()
-		onBeforeDeregister()
-		onExitDeregister()
-	}
+		LogicService.unbindAll();
+		onBeforeDeregister();
+		preventExitService.cleanup(ctrl)();
+		onExitDeregister();
+	};
 };
 
 export default angular
 	.module("app.workspace.nosql", [
-		modelDuplicatorComponent,
+		/*modelDuplicatorComponent,
 		preventExitServiceModule,
+		sidebarControlLogical,
 		statusBar,
 		shareModelModal,
 		iconConceptual,
+		supportBannersList,
+		*/
+		sqlGeneratorService,
+		sqlGeneratorModal,
+		duplicateModelModal,
+		preventExitServiceModule,
+		statusBar,
+		view,
+		columnForm,
+		sidebarControlLogical,
+		checkConstraint,
+		queryExpressionModal,
+		sqlComparasionDropdown,
+		shareModelModal,
+		iconLogic,
 		supportBannersList
 	])
 	.component("editorNoSQL", {

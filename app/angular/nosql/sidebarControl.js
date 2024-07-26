@@ -1,61 +1,18 @@
 import angular from "angular";
 import template from "./sidebarControl.html";
+import Column from "../service/Column";
 
-const configurator = () => {
-
-	const configuration = {
-		"emptyState": false,
-		"entity": false,
-		"relationship": false,
-		"extension": false,
-		"attribute": false,
-		"connection": false,
-		"link": false
-	}
-
-	const emptyState = () => {
-		configuration.emptyState = true;
-		return configuration;
-	}
-
-	const select = (element) => {
-		switch (element.type) {
-			case "Entity":
-				configuration.entity = true;
-				return configuration;
-			case "Attribute":
-				configuration.attribute = true;
-				return configuration;
-			case "Key":
-				configuration.key = true;
-				return configuration;
-			case "Relationship":
-				configuration.relationship = true;
-				return configuration;
-			case "Inheritance":
-				configuration.extension = true;
-				return configuration;
-			case "Link":
-				configuration.link = true;
-				return configuration;
-			default:
-				break;
-		}
-
-		return emptyState();
-	}
-
-	return {
-		emptyState,
-		select
-	}
-}
-
-
-const controller = function($rootScope, $timeout) {
+const Controller = function (LogicService, $rootScope, $timeout) {
 	const $ctrl = this;
+
 	$ctrl.visible = true;
-	$ctrl.selectedElement = {}
+	$ctrl.views = [];
+
+	$ctrl.sections = {
+		tableProperties: true,
+		columns: false,
+		views: false,
+	}
 
 	$rootScope.$on('command:openmenu', () => {
 		$timeout(() => {
@@ -63,152 +20,144 @@ const controller = function($rootScope, $timeout) {
 		});
 	});
 
-	$ctrl.$onInit = () => {
-		$ctrl.configuration = configurator().emptyState();
-	}
-
-	$ctrl.updateName = (newName) => {
-		if (newName != "") {
-			$ctrl.onUpdate({
-				"event": {
-					"type": "name",
-					"value": newName
-				}
-			});
-		}
-	}
-
-	$ctrl.extendEntity = (selected) => {
-		$ctrl.onUpdate({
-			"event": {
-				"type": "extention",
-				"value": selected.type
-			}
-		});
-	}
-
-	$ctrl.editExtention = (selected) => {
-		$ctrl.onUpdate({
-			"event": {
-				"type": "editExtention",
-				"value": selected
-			}
-		});
-	}
-
-	$ctrl.updateCardinality = (selected) => {
-		$ctrl.onUpdate({
-			"event": {
-				"type": "link.cardinality",
-				"value": selected.type
-			}
-		});
-	}
-
-	$ctrl.updateLinkRole = (selected) => {
-		$ctrl.onUpdate({
-			"event": {
-				"type": "link.role",
-				"value": selected
-			}
-		});
-	}
-
-	$ctrl.updateLinkWeak = (selected) => {
-		$ctrl.onUpdate({
-			"event": {
-				"type": "link.weak",
-				"value": selected
-			}
-		});
-	}
-
-	$ctrl.updateAttributeCardinality = (selected) => {
-		$ctrl.selectedElement.value.cardinality = selected.type;
-		$ctrl.onUpdate({
-			"event": {
-				"type": "attribute.cardinality",
-				"value": selected.type
-			}
-		});
-	}
-
-	$ctrl.updateAttributeName = (newName) => {
-		$ctrl.onUpdate({
-			"event": {
-				"type": "attribute.name",
-				"value": newName
-			}
-		});
-	}
-
-	$ctrl.swapComposed = (value) => {
-		$ctrl.onUpdate({
-			"event": {
-				"type": "attribute.composed",
-				"value": value
-			}
-		});
-	}
-
-	$ctrl.transformAssociative = () => {
-		$ctrl.onUpdate({
-			"event": {
-				"type": "relationship.associative",
-			}
-		});
-	}
-
-	const customSelector = (selected) => {
-		const currentType = selected.currentValue.type;
-		if (currentType === "Link") {
-			const attributes = selected.currentValue.element.model.attributes;
-			selected.currentValue.value = {
-				"weak": attributes.weak,
-				"role": attributes.role,
-				"cardinality": attributes.labels[0].attrs.text.text
-			}
-		}
-
-		if (currentType === "Attribute") {
-			const attributes = selected.currentValue.element.model.attributes;
-			selected.currentValue.value = {
-				"name": attributes.attrs.text.text.replace(/ *\([^)]*\) */g, ""),
-				"cardinality": attributes.cardinality,
-				"composed": attributes.composed
-			}
-		}
-		return selected.currentValue;
-	}
-
-	$ctrl.$onChanges = (changes) => {
-		if (changes.selected != null && changes.selected.currentValue != null) {
-			$ctrl.configuration = configurator().select(changes.selected.currentValue);
-			$ctrl.selectedElement = customSelector(changes.selected);
-		}
+	$ctrl.toggleSection = (section) => {
+		$ctrl.sections[section] = !$ctrl.sections[section];
 	}
 
 	$ctrl.changeVisible = () => {
 		$ctrl.visible = !$ctrl.visible;
 	}
 
-	$ctrl.addAutoRelationship = () => {
-		$ctrl.onUpdate({
-			"event": {
-				"type": "addAutoRelationship"
+	$ctrl.changeName = () => {
+		if ($ctrl.selectedName) {
+			LogicService.editName($ctrl.selectedName);
+		}
+	}
+
+	$ctrl.deleteColumn = ($index) => {
+		LogicService.deleteColumn($index);
+	}
+
+	$ctrl.getTableOriginName = (tableId) => {
+		const tables = [...$ctrl.mapTables].map(([name, value]) => ({ name, value }));
+		return tables.find(() => tableId)?.name;
+	}
+
+	$ctrl.editionColumnMode = (column) => {
+		loadTableNames();
+		const columnValues = JSON.parse(JSON.stringify(column));
+		$ctrl.editColumnModel = {
+			...columnValues,
+			tableOrigin: {
+				...columnValues.tableOrigin,
+				idName: $ctrl.getTableOriginName(columnValues.tableOrigin.idOrigin),
 			}
+		};
+		$ctrl.closeAllColumns();
+		column.expanded = true;
+	}
+
+	$ctrl.closeAllViews = () => {
+		$ctrl.views.forEach(view => {
+			view.expanded = false;
 		});
 	}
 
-}
+	$ctrl.editView = (view) => {
+		$ctrl.closeAllViews();
+		view.expanded = true;
+	}
 
-export default angular
-	.module("app.workspace.conceptual.sidebar", [])
-	.component("sidebarControlConceptual", {
-		template,
-		controller,
-		bindings: {
-			selected: "<",
-			onUpdate: "&",
-		},
-	}).name;
+	$ctrl.editColumn = (editedColumn, $index) => {
+		const column = $ctrl.checkColumnBeforeSave(editedColumn);
+
+		if (column) {
+			LogicService.editColumn($index, editedColumn);
+			$ctrl.closeAllColumns();
+		}
+	}
+
+	$ctrl.closeAllColumns = function () {
+		$ctrl.columns.forEach(column => {
+			column.expanded = false;
+		});
+	}
+
+	$ctrl.checkColumnBeforeSave = function (column) {
+		if (column.name == "") {
+			$ctrl.showFeedback("The column name cannot be empty!", true, "error");
+			return;
+		}
+
+		if (column.FK && column.tableOrigin.idName == "") {
+			$ctrl.showFeedback("Select the foreign table source!", true, "error");
+			return;
+		} else {
+			column.tableOrigin.idOrigin = $ctrl.mapTables.get(column.tableOrigin.idName);
+		}
+
+		return column;
+	}
+
+	$ctrl.addColumn = function (addedColumn) {
+		const column = $ctrl.checkColumnBeforeSave(addedColumn);
+
+		if (column) {
+			LogicService.addColumn(column);
+			$ctrl.addColumnModel = $ctrl.newColumnObject();
+			$ctrl.addColumnVisible = false;
+		}
+	}
+
+	$ctrl.showAddColumn = function (show) {
+		$ctrl.addColumnVisible = show;
+		$ctrl.addColumnModel = $ctrl.newColumnObject();
+		loadTableNames();
+	}
+
+	const loadTableNames = () => {
+		$ctrl.tableNames = [];
+		$ctrl.mapTables = LogicService.getTablesMap();
+		for (var key of $ctrl.mapTables.keys()) {
+			$ctrl.tableNames.push({ name: key, type: key });
+		}
+	}
+
+	$ctrl.newColumnObject = function () {
+		return new Column();
+	}
+
+	$ctrl.addColumnModel = $ctrl.newColumnObject();
+	$ctrl.editColumnModel = $ctrl.newColumnObject();
+
+	$ctrl.clearSidebar = () => {
+		$ctrl.selectedElement = null;
+		$ctrl.selectedName = null;
+		$ctrl.selectedType = null;
+		$ctrl.columns = null;
+	}
+
+	$ctrl.$onChanges = (changes) => {
+		if (!changes.selected.currentValue) $ctrl.clearSidebar();
+		if (changes.selected != null && changes.selected.currentValue != null) {
+			$ctrl.selectedElement = changes.selected.currentValue;
+			$ctrl.selectedName = changes.selected.currentValue.attributes.name;
+			$ctrl.selectedType = changes.selected.currentValue.attributes.type;
+			$ctrl.columns = changes.selected.currentValue.attributes.objects;
+			$ctrl.queryConditions = changes.selected.currentValue.attributes.queryConditions;
+			if ($ctrl.selectedType === 'uml.Class') {
+				$ctrl.views = LogicService.loadViewsByTable(changes.selected.currentValue.id);
+			}
+		}
+	}
+};
+
+export default angular.module("app.sidebarControl", [])
+	.component("sidebarControlLogical", {
+	template: template,
+	bindings: {
+		selected: "<",
+		showFeedback: "<",
+	},
+	controller: Controller,
+}).name;
