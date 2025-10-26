@@ -52,8 +52,6 @@
 							{{ 'Collection cardinality' | translate }}
 						</label>
 					</div>
-
-					<!-- TODO: Rework code markup-->
 					<div
 						class="cardinality-options card-item"
 						ng-if="$ctrl.selectedElement.cardinalityEnabled"
@@ -80,12 +78,12 @@
 							/>
 							<small>{{ 'Use N for unlimited' | translate }}</small>
 						</label>
-
 					</div><!-- End .cardinality-options -->
 				</div><!-- End .collection-cardinality-->
 			</div><!-- End .panel-content -->
 		</section><!-- End .sidebar-panel-->
 
+		<!-- TODO: Rework code markup-->
 		<section class="sidebar-panel">
 			<header class="panel-header" ng-click="$ctrl.toggleSection('attributes')">
 				<h3>{{ 'Attributes' | translate }}</h3>
