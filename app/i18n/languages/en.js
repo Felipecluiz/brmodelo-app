@@ -180,5 +180,15 @@ export default {
 	'Star on Github': 'Star on Github',
 	'Donate': 'Donate',
 	'Note': 'Note',
-	'Color': 'Cor'
+	'Color': 'Color',
+	'Minimum': 'Minimum',
+	'Maximum': 'Maximum',
+	'min.': 'min.',
+	'max.': 'max.',
+	'Use N for unlimited': 'Use N for unlimited',
+	'Collection properties': 'Collection properties',
+	'Collection cardinality': 'Collection cardinality',
+	'Attributes': 'Attributes',
+	'No attributes yet': 'No attributes yet',
+	'Enter attribute name': 'Enter attribute name'
 };

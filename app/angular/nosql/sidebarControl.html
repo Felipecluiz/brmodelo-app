@@ -58,17 +58,17 @@
 						class="cardinality-options card-item"
 						ng-if="$ctrl.selectedElement.cardinalityEnabled"
 					>
-						<label>Mínimo
+						<label>{{ 'Minimum' | translate }}
 							<input
 								type="number"
 								min="0"
 								class="form-control"
 								ng-model="$ctrl.selectedElement.minCardinality"
 								ng-change="$ctrl.updateCollectionCardinality()"
-								placeholder="mín."
+								placeholder="{{ 'min.' | translate }}"
 							/>
 						</label>
-						<label>Máximo
+						<label>{{ 'Maximum' | translate }}
 							<input
 								type="text"
 								class="form-control"
@@ -76,9 +76,9 @@
 								ng-change="$ctrl.updateCollectionCardinality()"
 								ng-pattern="/^[0-9nN]*$/"
 								ng-keypress="($event.charCode >= 48 && $event.charCode <= 57) || $event.charCode === 110 || $event.charCode === 78 || $event.charCode === 0 || $event.preventDefault()"
-								placeholder="máx."
+								placeholder="{{ 'max.' | translate }}"
 							/>
-							<small>Use N para ilimitado</small>
+							<small>{{ 'Use N for unlimited' | translate }}</small>
 						</label>
 
 					</div><!-- End .cardinality-options -->
@@ -105,7 +105,7 @@
 								style="width:55%;"
 								ng-model="attr.name"
 								ng-change="$ctrl.updateAttributeName($index, attr.name)"
-								placeholder="Nome"
+								placeholder="{{ 'Name' | translate }}"
 							/>
 
 							<select
@@ -126,7 +126,7 @@
 									ng-model="attr.cardinalityEnabled"
 									ng-change="$ctrl.updateAttributeCardinality($index)"
 								/>
-									Cardinalidade
+									{{ 'Cardinality' | translate }}
 								</label>
 								<input
 									type="text"
@@ -135,7 +135,7 @@
 									ng-model="attr.minCardinality"
 									ng-change="$ctrl.updateAttributeCardinality($index)"
 									ng-if="attr.cardinalityEnabled"
-									placeholder="mín."
+									placeholder="{{ 'min.' | translate }}"
 								/>
 								<input
 									type="text"
@@ -144,7 +144,7 @@
 									ng-model="attr.maxCardinality"
 									ng-change="$ctrl.updateAttributeCardinality($index)"
 									ng-if="attr.cardinalityEnabled"
-									placeholder="máx."
+									placeholder="{{ 'max.' | translate }}"
 								/>
 								<button
 									class="br-button br-button--danger"
@@ -201,7 +201,7 @@
 									type="checkbox"
 									ng-model="$ctrl.newAttributeCardinalityEnabled"
 								/>
-								Cardinalidade
+								{{ 'Cardinality' | translate }}
 								</label>
 							<input
 								type="text"
@@ -209,7 +209,7 @@
 								style="width:40%;"
 								ng-model="$ctrl.newAttributeMinCardinality"
 								ng-if="$ctrl.newAttributeCardinalityEnabled"
-								placeholder="mín."
+								placeholder="{{ 'min.' | translate }}"
 							/>
 							<input
 								type="text"
@@ -217,7 +217,7 @@
 								style="width:40%;"
 								ng-model="$ctrl.newAttributeMaxCardinality"
 								ng-if="$ctrl.newAttributeCardinalityEnabled"
-								placeholder="máx."
+								placeholder="{{ 'max.' | translate }}"
 							/>
 							<button
 								class="br-button br-button--full"
