@@ -54,11 +54,11 @@
 					</div>
 
 					<!-- TODO: Rework code markup-->
-					 <div class="cardinality-options">
-						<div
-							ng-if="$ctrl.selectedElement.cardinalityEnabled"
-							style="display:flex; gap:8px;"
-						>
+					<div
+						class="cardinality-options card-item"
+						ng-if="$ctrl.selectedElement.cardinalityEnabled"
+					>
+						<label>Mínimo
 							<input
 								type="number"
 								min="0"
@@ -66,23 +66,19 @@
 								ng-model="$ctrl.selectedElement.minCardinality"
 								ng-change="$ctrl.updateCollectionCardinality()"
 								placeholder="mín."
-								style="width:40%"
 							/>
+						</label>
+						<label>Máximo
 							<input
 								type="text"
 								class="form-control"
 								ng-model="$ctrl.selectedElement.maxCardinality"
 								ng-change="$ctrl.updateCollectionCardinality()"
 								placeholder="máx."
-								style="width:40%"
 							/>
-						</div>
-						<small
-							ng-if="$ctrl.selectedElement.cardinalityEnabled"
-							style="color:#888;"
-						>
-							Use N para ilimitado
-						</small>
+							<small>Use N para ilimitado</small>
+						</label>
+
 					</div><!-- End .cardinality-options -->
 				</div><!-- End .collection-cardinality-->
 			</div><!-- End .panel-content -->

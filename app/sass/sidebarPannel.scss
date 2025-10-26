@@ -171,3 +171,23 @@
 .check-constraint .form-field {
 	margin-bottom: 12px;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// .cardinality-options
+////////////////////////////////////////////////////////////////////////////////
+.cardinality-options.card-item {
+	padding: 12px;
+}
+
+.cardinality-options label {
+	width: 100%;
+	margin-bottom: 15px;
+}
+
+.cardinality-options label:last-child {
+	margin-bottom: 0;
+}
+
+.cardinality-options small {
+	color: var(--gray-20);
+}
