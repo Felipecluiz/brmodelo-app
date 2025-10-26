@@ -74,6 +74,8 @@
 								class="form-control"
 								ng-model="$ctrl.selectedElement.maxCardinality"
 								ng-change="$ctrl.updateCollectionCardinality()"
+								ng-pattern="/^[0-9nN]*$/"
+								ng-keypress="($event.charCode >= 48 && $event.charCode <= 57) || $event.charCode === 110 || $event.charCode === 78 || $event.charCode === 0 || $event.preventDefault()"
 								placeholder="máx."
 							/>
 							<small>Use N para ilimitado</small>
