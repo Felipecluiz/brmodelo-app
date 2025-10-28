@@ -95,11 +95,11 @@ const controller = function (
 	};
 
 	ctrl.undoModel = () => {
-		configs.editorActions.undo();
+		configs.editorActions.undoNosql();
 	};
 
 	ctrl.redoModel = () => {
-		configs.editorActions.redo();
+		configs.editorActions.redoNosql();
 	};
 
 	ctrl.zoomIn = () => {
@@ -272,8 +272,17 @@ const controller = function (
 		paper.on("element:mouseover", function (cellView) {
 			const model = cellView.model;
 			const graph = configs.graph;
-			const parents = graph.findModelsUnderElement(model);
-
+			let parents = [];
+			try {
+				parents = graph.findModelsUnderElement(model) || [];
+			} catch (err) {
+				console.warn(
+					"safe: findModelsUnderElement failed, ignoring. modelId=",
+					model && model.id,
+					err,
+				);
+				parents = [];
+			}
 			if (parents.length > 0) {
 				const parent = parents[parents.length - 1];
 
@@ -343,20 +352,40 @@ const controller = function (
 			return;
 		}
 
-		nosql.createMutualExclusionBrace(selectedContainers, configs.graph);
+		const braceCell = nosql.createMutualExclusionBrace(
+			selectedContainers,
+			configs.graph,
+		);
 
 		const allCells = configs.graph.getCells();
-		const parentContainer = allCells.find((cell) => {
-			return selectedContainers.every((child) =>
-				cell.getEmbeddedCells().includes(child),
-			);
-		});
+		const parentContainer = allCells.find((cell) =>
+			selectedContainers.every(
+				(child) =>
+					cell.getEmbeddedCells &&
+					cell.getEmbeddedCells().some((c) => c.id === child.id),
+			),
+		);
 
-		if (parentContainer) {
-			parentContainer.set("isMutualExclusionParent", true);
+		if (!parentContainer) {
+			console.warn("No parent found for mutual exclusion.");
 		} else {
-			console.warn("Anyone parent found to mutual exclusion.");
+			let mutuals = parentContainer.get("mutualExclusions");
+			if (!Array.isArray(mutuals)) {
+				mutuals = mutuals ? [mutuals] : [];
+			}
+
+			const mutualEntry = {
+				id: braceCell && braceCell.id ? braceCell.id : `me_${Date.now()}`, // id do brace ou id gerado
+				members: selectedContainers.map((c) => c.id),
+				createdAt: new Date().toISOString(),
+			};
+
+			mutuals.push(mutualEntry);
+			parentContainer.set("mutualExclusions", mutuals);
+
+			parentContainer.set("mutualExclusionCount", mutuals.length);
 		}
+
 		selectedContainers.forEach((cell) =>
 			configs.paper.findViewByModel(cell).unhighlight("body"),
 		);
@@ -482,11 +511,45 @@ const controller = function (
 			if (cellView != null) {
 				configs.elementSelector.cancel();
 				$timeout(() => {
-					cellView.model.toFront({ deep: true });
+					try {
+						const model = cellView.model;
+						if (model && typeof model.get === "function") {
+							const rawEmbeds = model.get("embeds");
+							if (rawEmbeds && !Array.isArray(rawEmbeds)) {
+								model.set(
+									"embeds",
+									Array.isArray(rawEmbeds) ? rawEmbeds : [rawEmbeds],
+									{ silent: true },
+								);
+							} else if (!rawEmbeds) {
+								model.set("embeds", [], { silent: true });
+							}
+						}
+					} catch (err) {
+						console.warn("onSelectElement: failed to normalize embeds", err);
+					}
+
+					try {
+						cellView.model.toFront({ deep: true });
+					} catch (err) {
+						console.warn(
+							"onSelectElement: toFront({deep:true}) failed, trying without deep",
+							err,
+						);
+						try {
+							cellView.model.toFront();
+						} catch (err2) {
+							console.error(
+								"onSelectElement: fallback toFront also failed",
+								err2,
+							);
+						}
+					}
+
 					ctrl.selectedElement = {
 						model: cellView.model,
 						value: cellView.model.attributes?.attrs?.headerText?.text,
-						type: cellView.model.attributes.supertype,
+						type: cellView.model.attributes?.supertype,
 						element: cellView,
 					};
 				});
