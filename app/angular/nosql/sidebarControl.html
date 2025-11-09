@@ -83,7 +83,6 @@
 			</div><!-- End .panel-content -->
 		</section><!-- End .sidebar-panel-->
 
-		<!-- TODO: Rework code markup-->
 		<section class="sidebar-panel">
 			<header class="panel-header" ng-click="$ctrl.toggleSection('attributes')">
 				<h3>{{ 'Attributes' | translate }}</h3>
@@ -91,66 +90,81 @@
 			</header>
 			<div class="panel-content" ng-show="$ctrl.sections.attributes">
 
-				<div ng-show="$ctrl.getCustomAttributes().length > 0" style="margin-bottom:10px;">
+				<!-- List of existing attributes -->
+				<div class="attributes-list" ng-show="$ctrl.getCustomAttributes().length > 0">
 					<div
+						class="attribute-item"
+						ng-class="{expanded: attr.expanded}"
 						ng-repeat="attr in $ctrl.getCustomAttributes() track by $index"
-						style="margin-bottom:14px; padding:8px; border-radius:6px; border:1px solid #eee; background:#fafafa;"
+						ng-init="attr.expanded = false"
 					>
-						<div style="display:flex; gap:8px; margin-bottom:6px;">
-						<input
-							type="text"
-							class="form-control"
-							style="width:55%;"
-							ng-model="attr.name"
-							ng-change="$ctrl.updateAttributeName($index, attr.name)"
-							placeholder="{{ 'Name' | translate }}"
-						/>
-
-						<select
-							class="form-control"
-							style="width:40%;"
-							ng-model="attr.type"
-							ng-change="$ctrl.updateAttributeType($index, attr.type)"
-						>
-							<option value="int">int</option>
-							<option value="string">string</option>
-							<option value="float">float</option>
-						</select>
+						<!-- Compact summary view -->
+						<div class="attribute-item-summary" ng-click="attr.expanded = !attr.expanded">
+							<span class="attribute-name">{{ attr.name }}</span>
+							<span class="attribute-type">{{ attr.type }}</span>
+							<span class="attribute-cardinality" ng-if="attr.cardinalityEnabled">
+								({{ attr.minCardinality || 0 }}, {{ attr.maxCardinality || 'n' }})
+							</span>
+							<i class="fa fa-chevron-down expand-icon" ng-class="{expanded: attr.expanded}"></i>
 						</div>
-						<div style="display:flex; align-items:center; gap:8px;">
-							<label style="margin:0;">
+
+						<!-- Expanded edit form -->
+						<div class="attribute-item-form" ng-show="attr.expanded">
+							<div class="form-row">
 								<input
-								type="checkbox"
-								ng-model="attr.cardinalityEnabled"
-								ng-change="$ctrl.updateAttributeCardinality($index)"
-							/>
-								{{ 'Cardinality' | translate }}
-							</label>
-							<input
-								type="text"
-								class="form-control"
-								style="width:40%;"
-								ng-model="attr.minCardinality"
-								ng-change="$ctrl.updateAttributeCardinality($index)"
-								ng-if="attr.cardinalityEnabled"
-								placeholder="{{ 'min.' | translate }}"
-							/>
-							<input
-								type="text"
-								class="form-control"
-								style="width:40%;"
-								ng-model="attr.maxCardinality"
-								ng-change="$ctrl.updateAttributeCardinality($index)"
-								ng-if="attr.cardinalityEnabled"
-								placeholder="{{ 'max.' | translate }}"
-							/>
-							<button
-								class="br-button br-button--danger"
-								style="padding:0 8px; margin-left:auto;"
-								ng-click="$ctrl.removeAttribute($index)"
-							>
-								<i class="fa fa-trash"></i>
-							</button>
+									type="text"
+									class="form-control"
+									ng-model="attr.name"
+									ng-change="$ctrl.updateAttributeName($index, attr.name)"
+									placeholder="{{ 'Name' | translate }}"
+								/>
+								<select
+									class="form-control"
+									ng-model="attr.type"
+									ng-change="$ctrl.updateAttributeType($index, attr.type)"
+								>
+									<option value="int">int</option>
+									<option value="string">string</option>
+									<option value="float">float</option>
+								</select>
+							</div>
+
+							<div class="cardinality-section">
+								<div class="cardinality-header">
+									<label>
+										<input
+											type="checkbox"
+											ng-model="attr.cardinalityEnabled"
+											ng-change="$ctrl.updateAttributeCardinality($index)"
+										/>
+										{{ 'Cardinality' | translate }}
+									</label>
+								</div>
+								<div class="cardinality-fields" ng-if="attr.cardinalityEnabled">
+									<input
+										type="text"
+										class="form-control"
+										ng-model="attr.minCardinality"
+										ng-change="$ctrl.updateAttributeCardinality($index)"
+										placeholder="{{ 'min.' | translate }}"
+									/>
+									<input
+										type="text"
+										class="form-control"
+										ng-model="attr.maxCardinality"
+										ng-change="$ctrl.updateAttributeCardinality($index)"
+										placeholder="{{ 'max.' | translate }}"
+									/>
+								</div>
+							</div>
+							<footer class="card-item-actions">
+								<button
+									class="br-button destructive"
+									ng-click="$ctrl.removeAttribute($index)"
+								>
+									{{ 'Delete' | translate }}
+								</button>
+							</footer>
 						</div>
 					</div>
 				</div>
