@@ -123,9 +123,9 @@
 									ng-model="attr.type"
 									ng-change="$ctrl.updateAttributeType($index, attr.type)"
 								>
-									<option value="int">int</option>
-									<option value="string">string</option>
-									<option value="float">float</option>
+									<option value="int">{{ 'int' | translate }}</option>
+									<option value="string">{{ 'string' | translate }}</option>
+									<option value="float">{{ 'float' | translate }}</option>
 								</select>
 							</div>
 

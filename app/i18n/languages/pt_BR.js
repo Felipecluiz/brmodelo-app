@@ -189,5 +189,8 @@ export default {
 	'Collection cardinality': 'Cardinalidade da coleção',
 	'Attributes': 'Atributos',
 	'No attributes yet': 'Nenhum atributo ainda',
-	'Enter attribute name': 'Digite o nome do atributo'
+	'Enter attribute name': 'Digite o nome do atributo',
+	'int': 'int',
+	'string': 'string',
+	'float': 'float'
 };
