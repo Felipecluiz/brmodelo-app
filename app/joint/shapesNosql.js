@@ -295,7 +295,9 @@ const Collection = joint.dia.Element.define(
 			const enabled = this.get("cardinalityEnabled");
 			let cardinalityText = "";
 			if (enabled) {
-				cardinalityText = `(${this.get("minCardinality") ?? 0},${this.get("maxCardinality") ?? "N"})`;
+				cardinalityText = `(${this.get("minCardinality") ?? 0},${
+					this.get("maxCardinality") ?? "N"
+				})`;
 			}
 			this.attr("collectionCardinality/text", cardinalityText);
 			const parentTop = parent.position().y;
@@ -304,7 +306,7 @@ const Collection = joint.dia.Element.define(
 						...children.map(
 							(child) => child.position().y + child.size().height,
 						),
-					)
+				  )
 				: tableBottom + parentTop;
 
 			const totalHeight =
@@ -505,9 +507,45 @@ function createMutualExclusionBrace(containers, graph) {
 		c.position(c.position().x + displacementX, c.position().y);
 	});
 
-	graph.getCells().forEach((cell) => {
-		if (cell.get("isMutualExclusionBrace")) cell.remove();
-	});
+	const graphCells = graph.getCells();
+	let parentId =
+		containers[0].get && containers[0].get("parent")
+			? containers[0].get("parent")
+			: containers[0].parent && containers[0].parent.id
+			? containers[0].parent.id
+			: null;
+
+	let sameParent = true;
+	if (parentId) {
+		for (let i = 1; i < containers.length; i++) {
+			const pId =
+				containers[i].get && containers[i].get("parent")
+					? containers[i].get("parent")
+					: containers[i].parent && containers[i].parent.id
+					? containers[i].parent.id
+					: null;
+			if (pId !== parentId) {
+				sameParent = false;
+				break;
+			}
+		}
+	} else {
+		const possibleParent = graphCells.find((cell) =>
+			containers.every((child) =>
+				(cell.getEmbeddedCells ? cell.getEmbeddedCells() : []).some(
+					(c) => c.id === child.id,
+				),
+			),
+		);
+		if (possibleParent) {
+			parentId = possibleParent.id;
+			sameParent = true;
+		} else {
+			sameParent = false;
+		}
+	}
+
+	const parentCell = sameParent && parentId ? graph.getCell(parentId) : null;
 
 	const brace = new joint.shapes.basic.Text({
 		position: { x: minX, y: minY },
@@ -529,37 +567,41 @@ function createMutualExclusionBrace(containers, graph) {
 	});
 	graph.addCell(brace);
 
-	// Embed a key in the first container (or in all you want)
-	containers[0].embed(brace);
+	if (parentCell) {
+		try {
+			parentCell.embed(brace);
+		} catch (e) {
+			containers[0].embed(brace);
+		}
+	} else {
+		containers[0].embed(brace);
+	}
 
 	brace.toFront();
-}
 
-const KeyIcon = joint.dia.Element.define(
-	"nosql.KeyIcon",
-	{
-		size: { width: 60, height: 60 },
-		attrs: {
-			icon: {
-				text: "🔑",
-				x: 30,
-				y: 35,
-				fontSize: 32,
-				fontFamily: "Arial",
-				textAnchor: "middle",
-				textVerticalAnchor: "middle",
-				cursor: "pointer",
-			},
-		},
-	},
-	{
-		markup: [{ tagName: "text", selector: "icon" }],
-	},
-);
+	const targetForMeta = parentCell || containers[0];
+	const existing = targetForMeta.get("mutualExclusions");
+	const mutuals = Array.isArray(existing)
+		? existing.slice()
+		: existing
+		? [existing]
+		: [];
+
+	const entry = {
+		id: brace.id || `me_${Date.now()}`,
+		members: containers.map((c) => c.id),
+		createdAt: new Date().toISOString(),
+	};
+
+	mutuals.push(entry);
+	targetForMeta.set("mutualExclusions", mutuals);
+	targetForMeta.set("mutualExclusionCount", mutuals.length);
+
+	return brace;
+}
 
 export default {
 	Collection,
 	CollectionView,
 	createMutualExclusionBrace,
-	KeyIcon,
 };

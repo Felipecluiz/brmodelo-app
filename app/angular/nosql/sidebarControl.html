@@ -1,17 +1,10 @@
 <aside class="model-properties" data-ng-class="{'active': $ctrl.visible}">
 	<span class="action" data-ng-click="$ctrl.changeVisible()">
-		<i class="fa angle-double-icon" data-ng-class="$ctrl.visible ? 'fa-angle-double-right' : 'fa-angle-double-left'"></i>
+		<i
+			class="fa angle-double-icon"
+			data-ng-class="!$ctrl.visible ? 'fa-angle-double-left' : 'fa-angle-double-right'"
+		></i>
 	</span>
-
-	<div class="properties-content old" ng-if="$ctrl.selectedElement == null">
-		<!-- Empty state when nothing is selected -->
-		<div class="form-group">
-			<div class="empty-state">
-				<i class="fa fa-mouse-pointer" aria-hidden="true"></i>
-				<p>{{ 'Select an element to edit' | translate }}</p>
-			</div>
-		</div>
-	</div>
 
 	<!-- Collection properties -->
 	<div class="properties-content" ng-if="$ctrl.selectedElement != null">
