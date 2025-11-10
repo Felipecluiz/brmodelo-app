@@ -171,3 +171,161 @@
 .check-constraint .form-field {
 	margin-bottom: 12px;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// .cardinality-options
+////////////////////////////////////////////////////////////////////////////////
+.cardinality-options.card-item {
+	padding: 12px;
+}
+
+.cardinality-options label {
+	width: 100%;
+	margin-bottom: 15px;
+}
+
+.cardinality-options label:last-child {
+	margin-bottom: 0;
+}
+
+.cardinality-options small {
+	color: var(--gray-20);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// .individual-attribute
+////////////////////////////////////////////////////////////////////////////////
+.individual-attribute {
+	display: flex;
+	gap: 12px;
+}
+
+.individual-attribute > .form-group {
+	width: 100%;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// .checkbox-header
+////////////////////////////////////////////////////////////////////////////////
+.checkbox-header {
+	display: flex;
+	justify-content: space-between;
+}
+
+.checkbox-header label {
+	margin: 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// .attributes-list
+////////////////////////////////////////////////////////////////////////////////
+.attributes-list {
+	margin-bottom: 10px;
+}
+
+.attribute-item {
+	border: 1px solid var(--gray-70);
+	// background: var(--white);
+	margin-top: -1px;
+	transition: margin 0.2s ease;
+}
+
+.attribute-item.expanded {
+	margin: 8px 0;
+}
+
+.attribute-item:last-child {
+	margin-bottom: 0;
+}
+
+.attribute-item-summary {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px;
+	cursor: pointer;
+	user-select: none;
+	transition: background-color 0.2s ease;
+}
+
+.attribute-item-summary:hover {
+	background: var(--background-light);
+}
+
+.attribute-item-summary .attribute-name {
+	font-weight: 500;
+	color: var(--text-default);
+}
+
+.attribute-item-summary .attribute-type {
+	padding: 2px 6px;
+	border-radius: 3px;
+	background: var(--brand-primary-05);
+	color: var(--brand-primary-10);
+	font-size: 11px;
+	font-family: monospace;
+}
+
+.attribute-item-summary .attribute-cardinality {
+	font-size: 11px;
+	color: var(--gray-20);
+	font-family: monospace;
+}
+
+.attribute-item-summary .expand-icon {
+	margin-left: auto;
+	font-size: 10px;
+	transition: transform 0.2s ease;
+	color: var(--gray-20);
+}
+
+.attribute-item-summary .expand-icon.expanded {
+	transform: rotate(180deg);
+}
+
+.attribute-item-form {
+	padding: 18px 12px;
+	border-top: 1px solid var(--gray-70);
+}
+
+.attribute-item-form .form-row {
+	display: flex;
+	gap: 8px;
+	margin-bottom: 12px;
+}
+
+.attribute-item-form .form-row > * {
+	flex: 1;
+}
+
+.attribute-item-form .form-row .form-control:first-child {
+	flex: 1.4;
+}
+
+.attribute-item-form .cardinality-section {
+	margin-bottom: 12px;
+}
+
+.attribute-item-form .cardinality-header {
+	display: flex;
+	align-items: center;
+	margin-bottom: 8px;
+}
+
+.attribute-item-form .cardinality-header label {
+	margin: 0;
+	white-space: nowrap;
+}
+
+.attribute-item-form .cardinality-fields {
+	display: flex;
+	gap: 8px;
+}
+
+.attribute-item-form .cardinality-fields .form-control {
+	flex: 1;
+}
+
+.attribute-item-form .delete-button {
+	width: 100%;
+}
