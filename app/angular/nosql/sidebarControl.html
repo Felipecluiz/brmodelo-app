@@ -74,14 +74,14 @@
 			>
 		</div>
 
-		<!-- Atributos section -->
+		<!-- Attributes section -->
 		<div
 			class="form-group"
 			ng-if="($ctrl.configuration.collection && $ctrl.visible)"
 		>
 			<div
 				class="toggle-header"
-				ng-click="$ctrl.atributosAbertos = !$ctrl.atributosAbertos"
+				ng-click="$ctrl.openAttributes = !$ctrl.openAttributes"
 				style="
 					cursor: pointer;
 					display: flex;
@@ -92,11 +92,11 @@
 				<strong style="flex: 1">Atributos</strong>
 				<i
 					class="fa"
-					ng-class="{'fa-chevron-down': $ctrl.atributosAbertos, 'fa-chevron-right': !$ctrl.atributosAbertos}"
+					ng-class="{'fa-chevron-down': $ctrl.openAttributes, 'fa-chevron-right': !$ctrl.openAttributes}"
 				></i>
 			</div>
 
-			<div ng-show="$ctrl.atributosAbertos">
+			<div ng-show="$ctrl.openAttributes">
 				<div
 					ng-show="$ctrl.getCustomAttributes().length > 0"
 					style="margin-bottom: 10px"

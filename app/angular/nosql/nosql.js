@@ -283,28 +283,156 @@ const controller = function (
 				);
 				parents = [];
 			}
-			if (parents.length > 0) {
-				const parent = parents[parents.length - 1];
+			if (!parents.length) return;
 
-				const currentParentId = model.get("parent");
-				if (currentParentId !== parent.id) {
-					if (currentParentId) {
-						const currentParent = graph.getCell(currentParentId);
-						if (currentParent) currentParent.unembed(model);
+			const parent = parents[parents.length - 1];
+			if (!parent) return;
+
+			const modelId = model && model.id;
+			const getParentId = () => {
+				const p = model.get && model.get("parent");
+				if (Array.isArray(p)) return p[0];
+				return p;
+			};
+
+			const currentParentId = getParentId();
+
+			function embedsContains(p, id) {
+				if (!p || !id) return false;
+				const raw = p.get && p.get("embeds");
+				if (!raw) return false;
+				if (Array.isArray(raw)) {
+					return raw.some((x) =>
+						x && x.id ? String(x.id) === String(id) : String(x) === String(id),
+					);
+				}
+				if (raw && typeof raw.toArray === "function") {
+					try {
+						return raw
+							.toArray()
+							.some((x) =>
+								x && x.id
+									? String(x.id) === String(id)
+									: String(x) === String(id),
+							);
+					} catch (e) {
+						return false;
 					}
-					parent.embed(model);
+				}
+				if (typeof raw === "object") {
+					return Object.keys(raw)
+						.map((k) => raw[k])
+						.some((v) =>
+							v && v.id
+								? String(v.id) === String(id)
+								: String(v) === String(id),
+						);
+				}
+				return String(raw) === String(id);
+			}
 
+			// If already consistent, nothing to do
+			if (currentParentId && String(currentParentId) === String(parent.id))
+				return;
+
+			// If parent claims to embed the model but model disagrees -> try to normalize/fix
+			if (embedsContains(parent, modelId)) {
+				try {
 					if (
-						Array.isArray(parent.attributes.customAttributes) &&
-						parent.attributes.customAttributes.length > 0
+						window.__jointPatches &&
+						typeof window.__jointPatches.normalizeEmbedsOfCell === "function"
 					) {
-						parent.updateTable(parent.get("customAttributes") || []);
-					} else if (typeof parent.realignChildrenInGrid === "function") {
-						parent.realignChildrenInGrid();
+						window.__jointPatches.normalizeEmbedsOfCell(parent);
+					} else {
+						//remove modelId from parents embeds array if present
+						const raw = parent.get && parent.get("embeds");
+						if (Array.isArray(raw)) {
+							const filtered = raw.filter((x) => {
+								const id = x && x.id ? String(x.id) : String(x);
+								return id && id !== String(modelId);
+							});
+							parent.set && parent.set("embeds", filtered, { silent: true });
+						}
+					}
+				} catch (e) {
+					console.warn(
+						"Failed to normalize parent's embeds before embed attempt",
+						e,
+					);
+				}
+
+				// if still present, attempt unembed to clear inconsistent state
+				if (embedsContains(parent, modelId)) {
+					try {
+						if (typeof parent.unembed === "function") {
+							parent.unembed(model);
+						} else {
+							parent.set && parent.set("embeds", [], { silent: true });
+						}
+					} catch (e) {
+						console.warn("Failed to unembed inconsistent entry from parent", e);
 					}
 				}
 			}
+
+			// If model currently belongs to a different parent, unembed it first
+			if (currentParentId && String(currentParentId) !== String(parent.id)) {
+				try {
+					const currentParent = graph.getCell(currentParentId);
+					if (currentParent && typeof currentParent.unembed === "function") {
+						currentParent.unembed(model);
+						if (
+							window.__jointPatches &&
+							typeof window.__jointPatches.normalizeEmbedsOfCell === "function"
+						) {
+							window.__jointPatches.normalizeEmbedsOfCell(currentParent);
+						}
+					}
+				} catch (e) {
+					console.warn("Failed to unembed from previous parent", e);
+				}
+			}
+
+			const finalParentId = getParentId();
+			if (finalParentId && String(finalParentId) === String(parent.id)) return;
+			if (embedsContains(parent, modelId)) return;
+
+			// Safe to embed
+			try {
+				parent.embed(model);
+				if (
+					window.__jointPatches &&
+					typeof window.__jointPatches.normalizeEmbedsOfCell === "function"
+				) {
+					window.__jointPatches.normalizeEmbedsOfCell(parent);
+				}
+			} catch (e) {
+				console.warn("embed failed (ignored):", e);
+				try {
+					if (
+						window.__jointPatches &&
+						typeof window.__jointPatches.normalizeAllEmbeds === "function"
+					) {
+						window.__jointPatches.normalizeAllEmbeds(graph);
+					}
+				} catch (_) {}
+				return;
+			}
+
+			try {
+				if (
+					Array.isArray(parent.attributes.customAttributes) &&
+					parent.attributes.customAttributes.length > 0
+				) {
+					parent.updateTable(parent.get("customAttributes") || []);
+				} else if (typeof parent.realignChildrenInGrid === "function") {
+					parent.realignChildrenInGrid();
+				}
+			} catch (e) {
+				console.warn("Failed to update parent visuals after embed", e);
+			}
 		});
+
 		paper.on("element:pointerdblclick", () => {
 			$rootScope.$broadcast("command:openmenu");
 		});
@@ -347,9 +475,31 @@ const controller = function (
 	};
 
 	$("#mutualExclusionBtn").on("click", function () {
+		selectedContainers = selectedContainers
+			.filter(
+				(c) =>
+					c &&
+					c.id &&
+					configs.graph &&
+					typeof configs.graph.getCell === "function" &&
+					configs.graph.getCell(c.id),
+			)
+			.map((c) => configs.graph.getCell(c.id));
+
 		if (selectedContainers.length < 2) {
 			alert("Select at least two containers to merge!");
 			return;
+		}
+
+		if (
+			window.__jointPatches &&
+			typeof window.__jointPatches.normalizeAllEmbeds === "function"
+		) {
+			try {
+				window.__jointPatches.normalizeAllEmbeds(configs.graph);
+			} catch (e) {
+				console.warn(e);
+			}
 		}
 
 		const braceCell = nosql.createMutualExclusionBrace(
@@ -357,38 +507,124 @@ const controller = function (
 			configs.graph,
 		);
 
+		const selectedIds = selectedContainers.map((c) => String(c.id));
+
+		// get all cells once
 		const allCells = configs.graph.getCells();
-		const parentContainer = allCells.find((cell) =>
-			selectedContainers.every(
-				(child) =>
-					cell.getEmbeddedCells &&
-					cell.getEmbeddedCells().some((c) => c.id === child.id),
-			),
-		);
+
+		// extract embedded ids from a parent cell in many shapes
+		function getEmbeddedIdsFromCell(cell) {
+			try {
+				let embedded = [];
+				if (typeof cell.getEmbeddedCells === "function") {
+					embedded = cell.getEmbeddedCells() || [];
+				} else {
+					embedded = cell.get && cell.get("embeds") ? cell.get("embeds") : [];
+				}
+
+				// normalize various representations to array of id strings
+				if (Array.isArray(embedded)) {
+					return embedded
+						.map((e) =>
+							e && e.id
+								? String(e.id)
+								: typeof e === "string" || typeof e === "number"
+								? String(e)
+								: null,
+						)
+						.filter(Boolean);
+				}
+
+				if (embedded && typeof embedded.toArray === "function") {
+					try {
+						return embedded
+							.toArray()
+							.map((e) =>
+								e && e.id
+									? String(e.id)
+									: typeof e === "string" || typeof e === "number"
+									? String(e)
+									: null,
+							)
+							.filter(Boolean);
+					} catch (err) {
+						console.log(err);
+					}
+				}
+
+				if (typeof embedded === "object") {
+					return Object.keys(embedded)
+						.map((k) => embedded[k])
+						.map((v) =>
+							v && v.id
+								? String(v.id)
+								: typeof v === "string" || typeof v === "number"
+								? String(v)
+								: null,
+						)
+						.filter(Boolean);
+				}
+
+				if (typeof embedded === "string" || typeof embedded === "number") {
+					return [String(embedded)];
+				}
+
+				return [];
+			} catch (e) {
+				return [];
+			}
+		}
+
+		// find a parent container that contains all selected ids
+		const parentContainer = allCells.find((cell) => {
+			try {
+				const embeddedIds = getEmbeddedIdsFromCell(cell);
+				if (!embeddedIds || embeddedIds.length === 0) return false;
+				// every selected id must be present among embeddedIds
+				return selectedIds.every((id) => embeddedIds.includes(String(id)));
+			} catch (e) {
+				return false;
+			}
+		});
 
 		if (!parentContainer) {
-			console.warn("No parent found for mutual exclusion.");
-		} else {
+			console.warn(
+				"No parent found for mutual exclusion. Aborting. Selected IDs:",
+				selectedIds,
+			);
+			selectedContainers.forEach((cell) => {
+				const v = configs.paper.findViewByModel(cell);
+				if (v && typeof v.unhighlight === "function") v.unhighlight("body");
+			});
+			selectedContainers = [];
+			alert("No common parent found for the selected containers.");
+			return;
+		}
+
+		try {
 			let mutuals = parentContainer.get("mutualExclusions");
 			if (!Array.isArray(mutuals)) {
-				mutuals = mutuals ? [mutuals] : [];
+				mutuals = mutuals ? (Array.isArray(mutuals) ? mutuals : [mutuals]) : [];
 			}
 
 			const mutualEntry = {
-				id: braceCell && braceCell.id ? braceCell.id : `me_${Date.now()}`, // id do brace ou id gerado
+				id: braceCell && braceCell.id ? braceCell.id : `me_${Date.now()}`,
 				members: selectedContainers.map((c) => c.id),
 				createdAt: new Date().toISOString(),
 			};
 
 			mutuals.push(mutualEntry);
 			parentContainer.set("mutualExclusions", mutuals);
-
 			parentContainer.set("mutualExclusionCount", mutuals.length);
+		} catch (e) {
+			console.error("Failed to update mutual exclusions on parent:", e);
 		}
 
-		selectedContainers.forEach((cell) =>
-			configs.paper.findViewByModel(cell).unhighlight("body"),
-		);
+		selectedContainers.forEach((cell) => {
+			const view = configs.paper.findViewByModel(cell);
+			if (view && typeof view.unhighlight === "function")
+				view.unhighlight("body");
+		});
 		selectedContainers = [];
 	});
 	const registerShortcuts = () => {
@@ -472,7 +708,7 @@ const controller = function (
 			alert("Selecione a coleção a ser referenciada");
 		};
 
-		configs.paper.on("element:pointerdown", function (cellView) {
+		configs.paper.on("element:pointerup", function (cellView) {
 			if (!refModeActive) return;
 
 			const model = cellView.model;
@@ -507,52 +743,191 @@ const controller = function (
 			selectedReferenceCollection = null;
 			alert("Atributo de referência criado!");
 		});
+		function bringDescendantsToFront(parent) {
+			try {
+				if (!parent || !configs || !configs.paper || !configs.graph) return;
+
+				if (
+					window.__jointPatches &&
+					typeof window.__jointPatches.normalizeEmbedsOfCell === "function"
+				) {
+					try {
+						window.__jointPatches.normalizeEmbedsOfCell(parent);
+					} catch (e) {
+						console.warn(
+							"bringDescendantsToFront: normalizeEmbedsOfCell failed",
+							e,
+						);
+					}
+				}
+
+				function getImmediateChildren(cell) {
+					let raw = [];
+					try {
+						if (typeof cell.getEmbeddedCells === "function") {
+							raw = cell.getEmbeddedCells() || [];
+						} else {
+							raw = cell.get && cell.get("embeds") ? cell.get("embeds") : [];
+						}
+					} catch (e) {
+						raw = cell.get && cell.get("embeds") ? cell.get("embeds") : [];
+					}
+					// normalize to actual cell objects
+					if (Array.isArray(raw)) {
+						return raw
+							.map((r) =>
+								r && r.id
+									? r
+									: typeof r === "string" || typeof r === "number"
+									? configs.graph.getCell(String(r))
+									: r,
+							)
+							.filter(Boolean);
+					}
+					if (raw && typeof raw.toArray === "function") {
+						try {
+							return raw
+								.toArray()
+								.map((r) =>
+									r && r.id
+										? r
+										: typeof r === "string" || typeof r === "number"
+										? configs.graph.getCell(String(r))
+										: r,
+								)
+								.filter(Boolean);
+						} catch (e) {
+							return [];
+						}
+					}
+					if (typeof raw === "object") {
+						return Object.keys(raw)
+							.map((k) => raw[k])
+							.map((r) =>
+								r && r.id
+									? r
+									: typeof r === "string" || typeof r === "number"
+									? configs.graph.getCell(String(r))
+									: r,
+							)
+							.filter(Boolean);
+					}
+					if (typeof raw === "string" || typeof raw === "number") {
+						const c = configs.graph.getCell(String(raw));
+						return c ? [c] : [];
+					}
+					return [];
+				}
+
+				const nodes = [];
+				const queue = [];
+				nodes.push(parent);
+				queue.push(parent);
+
+				while (queue.length) {
+					const cur = queue.shift();
+					const children = getImmediateChildren(cur);
+					for (let i = 0; i < children.length; i++) {
+						const ch = children[i];
+						// normalize child embeds too before exploring
+						if (
+							window.__jointPatches &&
+							typeof window.__jointPatches.normalizeEmbedsOfCell === "function"
+						) {
+							try {
+								window.__jointPatches.normalizeEmbedsOfCell(ch);
+							} catch (e) {}
+						}
+						nodes.push(ch);
+						queue.push(ch);
+					}
+				}
+
+				if (!nodes.length) return;
+
+				requestAnimationFrame(() => {
+					requestAnimationFrame(() => {
+						nodes.forEach((n) => {
+							try {
+								const view = configs.paper.findViewByModel
+									? configs.paper.findViewByModel(n)
+									: null;
+								if (view && typeof view.toFront === "function") {
+									view.toFront();
+								} else if (n && typeof n.toFront === "function") {
+									n.toFront();
+								}
+							} catch (e) {
+								console.warn(
+									"bringDescendantsToFront: child toFront failed",
+									e,
+								);
+							}
+						});
+					});
+				});
+			} catch (err) {
+				console.warn("bringDescendantsToFront error", err);
+			}
+		}
 		ctrl.onSelectElement = (cellView) => {
 			if (cellView != null) {
 				configs.elementSelector.cancel();
+
 				$timeout(() => {
+					const model = cellView.model;
+
 					try {
-						const model = cellView.model;
 						if (model && typeof model.get === "function") {
 							const rawEmbeds = model.get("embeds");
 							if (rawEmbeds && !Array.isArray(rawEmbeds)) {
-								model.set(
-									"embeds",
-									Array.isArray(rawEmbeds) ? rawEmbeds : [rawEmbeds],
-									{ silent: true },
-								);
-							} else if (!rawEmbeds) {
-								model.set("embeds", [], { silent: true });
+								if (
+									window.__jointPatches &&
+									typeof window.__jointPatches.normalizeEmbedsOfCell ===
+										"function"
+								) {
+									try {
+										window.__jointPatches.normalizeEmbedsOfCell(model);
+									} catch (e) {
+										console.warn(
+											"onSelectElement: normalizeEmbedsOfCell failed",
+											e,
+										);
+									}
+								} else if (
+									typeof rawEmbeds === "string" ||
+									typeof rawEmbeds === "number" ||
+									(rawEmbeds && rawEmbeds.id)
+								) {
+									model.set(
+										"embeds",
+										Array.isArray(rawEmbeds) ? rawEmbeds : [rawEmbeds],
+										{ silent: true },
+									);
+								}
 							}
 						}
 					} catch (err) {
 						console.warn("onSelectElement: failed to normalize embeds", err);
 					}
 
-					try {
-						cellView.model.toFront({ deep: true });
-					} catch (err) {
-						console.warn(
-							"onSelectElement: toFront({deep:true}) failed, trying without deep",
-							err,
-						);
+					const view = configs.paper.findViewByModel(model);
+					if (view && typeof view.toFront === "function") {
+						view.toFront();
+					} else {
 						try {
-							cellView.model.toFront();
-						} catch (err2) {
-							console.error(
-								"onSelectElement: fallback toFront also failed",
-								err2,
-							);
-						}
+							model.toFront();
+						} catch (e) {}
 					}
+					bringDescendantsToFront(model);
 
 					ctrl.selectedElement = {
-						model: cellView.model,
-						value: cellView.model.attributes?.attrs?.headerText?.text,
-						type: cellView.model.attributes?.supertype,
+						model: model,
+						value: model.attributes?.attrs?.headerText?.text,
+						type: model.attributes?.supertype,
 						element: cellView,
 					};
-				});
+				}, 40);
 				return;
 			}
 
@@ -636,6 +1011,7 @@ const controller = function (
 		ctrl.newAttributeName = "";
 		ctrl.newAttributeType = "";
 	};
+
 	ctrl.$onInit = () => {
 		ctrl.toolsViewService = new ToolsViewService();
 		ctrl.setLoading(true);
@@ -652,6 +1028,14 @@ const controller = function (
 				ctrl.model.model = jsonModel;
 
 				configs.graph.fromJSON(jsonModel);
+				if (window.__jointPatches) {
+					try {
+						window.__jointPatches.normalizeAllEmbeds(configs.graph);
+					} catch (e) {}
+					try {
+						window.__jointPatches.wireNormalizeOnEmbed(configs.graph);
+					} catch (e) {}
+				}
 				const selectedId = ctrl.selectedElement?.model?.id;
 
 				ctrl.graph = configs.graph;

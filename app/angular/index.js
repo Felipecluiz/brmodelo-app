@@ -6,6 +6,10 @@ import "angular-cookies";
 import "angular-translate";
 import "textangular";
 
+import * as joint from "jointjs/dist/joint";
+window.joint = window.joint || joint;
+
+import "./bootstrap/joint-patches";
 import "jointjs";
 import jointCss from "jointjs/dist/joint.min.css";
 import "bootstrap/dist/css/bootstrap.css";
@@ -33,7 +37,7 @@ import noteEditor from "./components/noteEditor";
  * This line prevent a sideEffect issue in jointjs library that make webpack ignore joint css imports
  * See more: https://github.com/webpack/webpack/issues/8814
  */
-console.log(jointCss)
+console.log(jointCss);
 
 const app = angular.module("app", [
 	"ui.router",
@@ -50,7 +54,7 @@ const app = angular.module("app", [
 	dropdownIconComponent,
 	sidebarControlLogic,
 	noteEditor,
-	sidebarControlNosql
+	sidebarControlNosql,
 ]);
 
 app.config([
@@ -59,29 +63,35 @@ app.config([
 		$translateProvider.translations("en", en);
 		$translateProvider.translations("pt_BR", pt_BR);
 		const browserLanguage = navigator.language === "pt-BR" ? "pt_BR" : "en";
-		$translateProvider.preferredLanguage(localStorage.getItem("i18n") || browserLanguage);
+		$translateProvider.preferredLanguage(
+			localStorage.getItem("i18n") || browserLanguage,
+		);
 	},
 ]);
 
-app.config(['$httpProvider', ($httpProvider) => {
-	$httpProvider.interceptors.push($q => ({
-	 	"request": (config) => {
-			const regex = /.*\.(html)/;
-			if (config.url.match(regex)) return config;
-			const apiUrl = process.env.API_URL || "http://localhost:3000"
-			config.url = `${apiUrl}${config.url}`
-			return config;
-		 }
-	}));
-	$httpProvider.interceptors.push(($injector) => ({
-		"request": (config) => {
-			if ($injector.get("AuthService").isAuthenticated()) {
-				config.headers["brx-access-token"] = $injector.get("AuthService").token;
-			}
-			return config;
-		}
-	}));
-	}]);
+app.config([
+	"$httpProvider",
+	($httpProvider) => {
+		$httpProvider.interceptors.push(($q) => ({
+			request: (config) => {
+				const regex = /.*\.(html)/;
+				if (config.url.match(regex)) return config;
+				const apiUrl = process.env.API_URL || "http://localhost:3000";
+				config.url = `${apiUrl}${config.url}`;
+				return config;
+			},
+		}));
+		$httpProvider.interceptors.push(($injector) => ({
+			request: (config) => {
+				if ($injector.get("AuthService").isAuthenticated()) {
+					config.headers["brx-access-token"] =
+						$injector.get("AuthService").token;
+				}
+				return config;
+			},
+		}));
+	},
+]);
 
 app.config([
 	"$urlRouterProvider",
@@ -98,7 +108,7 @@ app.config([
 			lazyLoad($transition$) {
 				const $ocLazyLoad = $transition$.injector().get("$ocLazyLoad");
 				return import("./login/login.js").then((mod) =>
-					$ocLazyLoad.inject(mod.default)
+					$ocLazyLoad.inject(mod.default),
 				);
 			},
 		});
@@ -113,11 +123,10 @@ app.config([
 			lazyLoad($transition$) {
 				const $ocLazyLoad = $transition$.injector().get("$ocLazyLoad");
 				return import("./publicview/publicview.js").then((mod) =>
-					$ocLazyLoad.inject(mod.default)
+					$ocLazyLoad.inject(mod.default),
 				);
 			},
 		});
-
 
 		$stateProvider.state("register", {
 			title: "Register - BRMW",
@@ -129,7 +138,7 @@ app.config([
 			lazyLoad($transition$) {
 				const $ocLazyLoad = $transition$.injector().get("$ocLazyLoad");
 				return import("./signup/signup.js").then((mod) =>
-					$ocLazyLoad.inject(mod.default)
+					$ocLazyLoad.inject(mod.default),
 				);
 			},
 		});
@@ -144,7 +153,7 @@ app.config([
 			lazyLoad($transition$) {
 				const $ocLazyLoad = $transition$.injector().get("$ocLazyLoad");
 				return import("./recovery/recovery.js").then((mod) =>
-					$ocLazyLoad.inject(mod.default)
+					$ocLazyLoad.inject(mod.default),
 				);
 			},
 		});
@@ -159,7 +168,7 @@ app.config([
 			lazyLoad($transition$) {
 				const $ocLazyLoad = $transition$.injector().get("$ocLazyLoad");
 				return import("./recovery/reset.js").then((mod) =>
-					$ocLazyLoad.inject(mod.default)
+					$ocLazyLoad.inject(mod.default),
 				);
 			},
 		});
@@ -174,7 +183,7 @@ app.config([
 			lazyLoad($transition$) {
 				const $ocLazyLoad = $transition$.injector().get("$ocLazyLoad");
 				return import("./workspace/workspace.js").then((mod) =>
-					$ocLazyLoad.inject(mod.default)
+					$ocLazyLoad.inject(mod.default),
 				);
 			},
 		});
@@ -189,7 +198,7 @@ app.config([
 			lazyLoad($transition$) {
 				const $ocLazyLoad = $transition$.injector().get("$ocLazyLoad");
 				return import("./conceptual/conceptual.js").then((mod) =>
-					$ocLazyLoad.inject(mod.default)
+					$ocLazyLoad.inject(mod.default),
 				);
 			},
 		});
@@ -204,7 +213,7 @@ app.config([
 			lazyLoad($transition$) {
 				const $ocLazyLoad = $transition$.injector().get("$ocLazyLoad");
 				return import("./logic/logic.js").then((mod) =>
-					$ocLazyLoad.inject(mod.default)
+					$ocLazyLoad.inject(mod.default),
 				);
 			},
 		});
@@ -219,7 +228,7 @@ app.config([
 			lazyLoad($transition$) {
 				const $ocLazyLoad = $transition$.injector().get("$ocLazyLoad");
 				return import("./nosql/nosql.js").then((mod) =>
-					$ocLazyLoad.inject(mod.default)
+					$ocLazyLoad.inject(mod.default),
 				);
 			},
 		});
@@ -234,7 +243,7 @@ app.config([
 			lazyLoad($transition$) {
 				const $ocLazyLoad = $transition$.injector().get("$ocLazyLoad");
 				return import("./noaccess/noaccess.js").then((mod) =>
-					$ocLazyLoad.inject(mod.default)
+					$ocLazyLoad.inject(mod.default),
 				);
 			},
 		});
@@ -257,7 +266,7 @@ app.config([
 			lazyLoad($transition$) {
 				const $ocLazyLoad = $transition$.injector().get("$ocLazyLoad");
 				return import("./preferences/preferences.js").then((mod) =>
-					$ocLazyLoad.inject(mod.default)
+					$ocLazyLoad.inject(mod.default),
 				);
 			},
 		});
@@ -266,24 +275,29 @@ app.config([
 	},
 ]);
 
-app.run(function ($transitions, $rootScope, AuthService, $state, $window, $location) {
-	$transitions.onStart({}, function (trans) {
-		const { requireLogin } = trans.to().data;
-		if (requireLogin) {
-			if (AuthService.isAuthenticated()) {
-				$rootScope.loggeduser = AuthService.loggeduser;
-				$rootScope.token = AuthService.token;
-			} else {
-				$state.go("login");
+app.run(
+	function ($transitions, $rootScope, AuthService, $state, $window, $location) {
+		$transitions.onStart({}, function (trans) {
+			const { requireLogin } = trans.to().data;
+			if (requireLogin) {
+				if (AuthService.isAuthenticated()) {
+					$rootScope.loggeduser = AuthService.loggeduser;
+					$rootScope.token = AuthService.token;
+				} else {
+					$state.go("login");
+				}
 			}
-		}
-		$rootScope.title = trans.to().title;
-		if (typeof $window.gtag === 'function' && !$location.absUrl().includes("localhost")) {
-			$window.gtag('js', new Date());
-			$window.gtag('event', 'page_view', { 'send_to': 'G-NQ9Z9PV306' });
-		}
-	});
-});
+			$rootScope.title = trans.to().title;
+			if (
+				typeof $window.gtag === "function" &&
+				!$location.absUrl().includes("localhost")
+			) {
+				$window.gtag("js", new Date());
+				$window.gtag("event", "page_view", { send_to: "G-NQ9Z9PV306" });
+			}
+		});
+	},
+);
 
 app.config(function () {
 	angular.lowercase = function (text) {
@@ -291,17 +305,15 @@ app.config(function () {
 	};
 });
 
-
-app.directive('autofocus', function($timeout) {
-    return {
-        restrict: 'A',
-        link: function(_scope, _element) {
-            $timeout(function(){
-                _element[0].focus();
-            }, 100);
-        }
-    };
+app.directive("autofocus", function ($timeout) {
+	return {
+		restrict: "A",
+		link: function (_scope, _element) {
+			$timeout(function () {
+				_element[0].focus();
+			}, 100);
+		},
+	};
 });
 
 app.$inject = ["$scope", "$http", "$cookies", "$uibModalInstance"];
-
