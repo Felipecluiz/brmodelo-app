@@ -8,7 +8,10 @@
 
 	<div class="properties-content old">
 		<!-- Empty state when nothing is selected -->
-		<div class="form-group" ng-if="$ctrl.configuration.emptyState">
+		<div
+			class="form-group"
+			ng-if="$ctrl.configuration && $ctrl.configuration.emptyState"
+		>
 			<div class="empty-state">
 				<i class="fa fa-mouse-pointer" aria-hidden="true"></i>
 				<p>{{ 'Select an element to edit' | translate }}</p>
@@ -18,7 +21,7 @@
 		<!-- Collection editing section -->
 		<div
 			class="form-group"
-			ng-if="($ctrl.configuration.collection && $ctrl.visible)"
+			ng-if="$ctrl.configuration && $ctrl.configuration.collection && $ctrl.visible"
 		>
 			<div class="form-group">
 				<label for="entry-name">{{ 'Name' | translate }}</label>
@@ -35,7 +38,7 @@
 
 		<div
 			class="form-group"
-			ng-if="($ctrl.configuration.collection && $ctrl.visible)"
+			ng-if="$ctrl.configuration && $ctrl.configuration.collection && $ctrl.visible && $ctrl.selectedElement && $ctrl.selectedElement.containerType === 'block'"
 		>
 			<label>
 				<input
@@ -43,11 +46,11 @@
 					ng-model="$ctrl.selectedElement.cardinalityEnabled"
 					ng-change="$ctrl.updateCollectionCardinality()"
 				/>
-				Cardinalidade da coleção
+				Cardinalidade do Bloco
 			</label>
 			<div
 				ng-if="$ctrl.selectedElement.cardinalityEnabled"
-				style="display: flex; gap: 8px"
+				style="display: flex; gap: 8px; margin-top: 8px"
 			>
 				<input
 					type="number"
@@ -74,14 +77,14 @@
 			>
 		</div>
 
-		<!-- Atributos section -->
+		<!-- Attributes section -->
 		<div
 			class="form-group"
-			ng-if="($ctrl.configuration.collection && $ctrl.visible)"
+			ng-if="$ctrl.configuration && $ctrl.configuration.collection && $ctrl.visible"
 		>
 			<div
 				class="toggle-header"
-				ng-click="$ctrl.atributosAbertos = !$ctrl.atributosAbertos"
+				ng-click="$ctrl.openAttributes = !$ctrl.openAttributes"
 				style="
 					cursor: pointer;
 					display: flex;
@@ -92,11 +95,11 @@
 				<strong style="flex: 1">Atributos</strong>
 				<i
 					class="fa"
-					ng-class="{'fa-chevron-down': $ctrl.atributosAbertos, 'fa-chevron-right': !$ctrl.atributosAbertos}"
+					ng-class="{'fa-chevron-down': $ctrl.openAttributes, 'fa-chevron-right': !$ctrl.openAttributes}"
 				></i>
 			</div>
 
-			<div ng-show="$ctrl.atributosAbertos">
+			<div ng-show="$ctrl.openAttributes">
 				<div
 					ng-show="$ctrl.getCustomAttributes().length > 0"
 					style="margin-bottom: 10px"
@@ -120,7 +123,6 @@
 								ng-change="$ctrl.updateAttributeName($index, attr.name)"
 								placeholder="Nome"
 							/>
-
 							<select
 								class="form-control"
 								style="width: 40%"
@@ -130,6 +132,7 @@
 								<option value="int">int</option>
 								<option value="string">string</option>
 								<option value="float">float</option>
+								<option value="array">array</option>
 							</select>
 						</div>
 						<div style="display: flex; align-items: center; gap: 8px">
@@ -169,6 +172,7 @@
 						</div>
 					</div>
 				</div>
+
 				<div
 					ng-show="!$ctrl.getCustomAttributes().length"
 					style="color: #888; font-size: 90%; margin-bottom: 10px"
@@ -210,7 +214,7 @@
 							class="form-control"
 							style="width: 40%"
 							ng-model="$ctrl.newAttributeType"
-							ng-init="$ctrl.newAttributeType = 'string'"
+							ng-init="$ctrl.newAttributeType='string'"
 						>
 							<option value="int">int</option>
 							<option value="string">string</option>

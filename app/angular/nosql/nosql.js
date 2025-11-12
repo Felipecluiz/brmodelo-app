@@ -61,7 +61,218 @@ const controller = function (
 		selectedElementActions: null,
 	};
 	let selectedContainers = [];
+	function _getContainerType(cell) {
+		try {
+			if (!cell) return null;
+			if (typeof cell.get === "function") {
+				const ct = cell.get("containerType");
+				if (ct) return String(ct).toLowerCase().trim();
+			}
+			const attrs = cell && cell.attributes ? cell.attributes : {};
+			if (attrs.containerType)
+				return String(attrs.containerType).toLowerCase().trim();
+			return null;
+		} catch (e) {
+			console.error(e);
+			return null;
+		}
+	}
 
+	function _getSupertypeToken(cell) {
+		try {
+			if (!cell) return null;
+			if (typeof cell.get === "function") {
+				const s = cell.get("supertype") || cell.get("type");
+				if (s) return String(s).toLowerCase().trim();
+			}
+			const attrs = cell && cell.attributes ? cell.attributes : {};
+			const cand = attrs.supertype || attrs.type;
+			if (cand) return String(cand).toLowerCase().trim();
+			return null;
+		} catch (e) {
+			console.error(e);
+			return null;
+		}
+	}
+
+	function isCollection(cell) {
+		const ct = _getContainerType(cell);
+		if (ct === "block") return false;
+		if (ct === "collection" || ct === "colecao" || ct === "coleção")
+			return true;
+		const st = _getSupertypeToken(cell);
+		if (!st) return false;
+		return (
+			st === "collection" ||
+			st === "coleção" ||
+			st === "colecao" ||
+			st.indexOf("collection") !== -1
+		);
+	}
+
+	function isBlock(cell) {
+		const ct = _getContainerType(cell);
+		if (ct === "collection" || ct === "colecao" || ct === "coleção")
+			return false;
+		if (ct === "block" || ct === "bloco") return true;
+		const st = _getSupertypeToken(cell);
+		if (!st) return false;
+		if (st === "block" || st === "bloco" || st.indexOf("block") !== -1)
+			return true;
+		return false;
+	}
+
+	function hasAncestor(node, candidateAncestorId, graphRef) {
+		if (!node || !candidateAncestorId || !graphRef) return false;
+		try {
+			let current = node;
+			let depth = 0;
+			while (current && depth < 100) {
+				const p = current.get && current.get("parent");
+				const pid = Array.isArray(p) ? p[0] : p;
+				if (!pid) break;
+				if (String(pid) === String(candidateAncestorId)) return true;
+				current = graphRef.getCell && graphRef.getCell(pid);
+				depth++;
+			}
+		} catch (e) {
+			return false;
+		}
+		return false;
+	}
+
+	function safeEmbed(parent, child, graph) {
+		if (!parent || !child) return;
+
+		if (typeof hasAncestor === "function" && graph) {
+			if (hasAncestor(parent, child.id, graph)) {
+				console.warn(
+					"[EMBED SKIPPED] would create cycle: parent is descendant of child",
+					{
+						parentId: parent.id,
+						childId: child.id,
+					},
+				);
+				return;
+			}
+		}
+
+		let pRaw = null;
+		try {
+			pRaw = child.get && child.get("parent");
+		} catch (e) {
+			pRaw = null;
+		}
+		const currentParentId = Array.isArray(pRaw) ? pRaw[0] : pRaw;
+
+		if (currentParentId && String(currentParentId) === String(parent.id))
+			return;
+
+		if (currentParentId && String(currentParentId) !== String(parent.id)) {
+			try {
+				const currentParent =
+					graph && typeof graph.getCell === "function"
+						? graph.getCell(currentParentId)
+						: null;
+				if (currentParent && typeof currentParent.unembed === "function") {
+					currentParent.unembed(child);
+					if (
+						window.__jointPatches &&
+						typeof window.__jointPatches.normalizeEmbedsOfCell === "function"
+					) {
+						window.__jointPatches.normalizeEmbedsOfCell(currentParent);
+					}
+				} else if (currentParent && currentParent.get) {
+					const raw = currentParent.get("embeds");
+					if (Array.isArray(raw)) {
+						const filtered = raw.filter((x) => {
+							const id = x && x.id ? String(x.id) : String(x);
+							return id && id !== String(child.id);
+						});
+						currentParent.set &&
+							currentParent.set("embeds", filtered, { silent: true });
+					} else {
+						try {
+							child.set && child.set("parent", null, { silent: true });
+						} catch (_) {}
+					}
+				} else {
+					try {
+						child.set && child.set("parent", null, { silent: true });
+					} catch (_) {}
+				}
+			} catch (e) {
+				console.warn("safeEmbed: failed to unembed from previous parent", e);
+			}
+		}
+
+		try {
+			parent.embed(child);
+			if (
+				window.__jointPatches &&
+				typeof window.__jointPatches.normalizeEmbedsOfCell === "function"
+			) {
+				window.__jointPatches.normalizeEmbedsOfCell(parent);
+			}
+			return;
+		} catch (err) {
+			try {
+				const nowParent = child.get && child.get("parent");
+				const nowParentId = Array.isArray(nowParent) ? nowParent[0] : nowParent;
+				if (nowParentId && String(nowParentId) === String(parent.id)) {
+					return;
+				}
+			} catch (e) {
+				console.error(e);
+			}
+
+			const msg = err && err.message ? err.message : String(err);
+			if (
+				msg.indexOf &&
+				msg.indexOf("Embedding of already embedded cells") !== -1
+			) {
+				try {
+					try {
+						child.set && child.set("parent", null, { silent: true });
+					} catch (e) {
+						console.error(e);
+					}
+					const all =
+						graph && typeof graph.getCells === "function"
+							? graph.getCells()
+							: [];
+					const cid = String(child.id);
+					for (let i = 0; i < all.length; i++) {
+						const c = all[i];
+						if (!c || !c.get) continue;
+						const raw = c.get("embeds");
+						if (!raw) continue;
+						if (Array.isArray(raw)) {
+							const filtered = raw.filter((x) => {
+								const id = x && x.id ? String(x.id) : String(x);
+								return id && id !== cid;
+							});
+							c.set && c.set("embeds", filtered, { silent: true });
+						}
+					}
+					parent.embed(child);
+					if (
+						window.__jointPatches &&
+						typeof window.__jointPatches.normalizeEmbedsOfCell === "function"
+					) {
+						window.__jointPatches.normalizeEmbedsOfCell(parent);
+					}
+					return;
+				} catch (err2) {
+					console.warn("safeEmbed: re-embed attempt failed", err2);
+					return;
+				}
+			}
+
+			console.warn("safeEmbed: embed failed", err);
+			return;
+		}
+	}
 	const setIsDirty = (isDirty) => {
 		ctrl.modelState.isDirty = isDirty;
 	};
@@ -283,28 +494,136 @@ const controller = function (
 				);
 				parents = [];
 			}
-			if (parents.length > 0) {
-				const parent = parents[parents.length - 1];
+			if (!parents.length) return;
 
-				const currentParentId = model.get("parent");
-				if (currentParentId !== parent.id) {
-					if (currentParentId) {
-						const currentParent = graph.getCell(currentParentId);
-						if (currentParent) currentParent.unembed(model);
+			const parent = parents[parents.length - 1];
+			if (!parent) return;
+
+			const modelId = model && model.id;
+			const getParentId = () => {
+				const p = model.get && model.get("parent");
+				if (Array.isArray(p)) return p[0];
+				return p;
+			};
+
+			const currentParentId = getParentId();
+
+			function embedsContains(p, id) {
+				if (!p || !id) return false;
+				const raw = p.get && p.get("embeds");
+				if (!raw) return false;
+				if (Array.isArray(raw)) {
+					return raw.some((x) =>
+						x && x.id ? String(x.id) === String(id) : String(x) === String(id),
+					);
+				}
+				if (raw && typeof raw.toArray === "function") {
+					try {
+						return raw
+							.toArray()
+							.some((x) =>
+								x && x.id
+									? String(x.id) === String(id)
+									: String(x) === String(id),
+							);
+					} catch (e) {
+						return false;
 					}
-					parent.embed(model);
+				}
+				if (typeof raw === "object") {
+					return Object.keys(raw)
+						.map((k) => raw[k])
+						.some((v) =>
+							v && v.id
+								? String(v.id) === String(id)
+								: String(v) === String(id),
+						);
+				}
+				return String(raw) === String(id);
+			}
 
+			// If already consistent, nothing to do
+			if (currentParentId && String(currentParentId) === String(parent.id))
+				return;
+
+			// If parent claims to embed the model but model disagrees -> try to normalize/fix
+			if (embedsContains(parent, modelId)) {
+				try {
 					if (
-						Array.isArray(parent.attributes.customAttributes) &&
-						parent.attributes.customAttributes.length > 0
+						window.__jointPatches &&
+						typeof window.__jointPatches.normalizeEmbedsOfCell === "function"
 					) {
-						parent.updateTable(parent.get("customAttributes") || []);
-					} else if (typeof parent.realignChildrenInGrid === "function") {
-						parent.realignChildrenInGrid();
+						window.__jointPatches.normalizeEmbedsOfCell(parent);
+					} else {
+						//remove modelId from parents embeds array if present
+						const raw = parent.get && parent.get("embeds");
+						if (Array.isArray(raw)) {
+							const filtered = raw.filter((x) => {
+								const id = x && x.id ? String(x.id) : String(x);
+								return id && id !== String(modelId);
+							});
+							parent.set && parent.set("embeds", filtered, { silent: true });
+						}
+					}
+				} catch (e) {
+					console.warn(
+						"Failed to normalize parent's embeds before embed attempt",
+						e,
+					);
+				}
+
+				// if still present, attempt unembed to clear inconsistent state
+				if (embedsContains(parent, modelId)) {
+					try {
+						if (typeof parent.unembed === "function") {
+							parent.unembed(model);
+						} else {
+							parent.set && parent.set("embeds", [], { silent: true });
+						}
+					} catch (e) {
+						console.warn("Failed to unembed inconsistent entry from parent", e);
 					}
 				}
 			}
+
+			// If model currently belongs to a different parent, unembed it first
+			if (currentParentId && String(currentParentId) !== String(parent.id)) {
+				try {
+					const currentParent = graph.getCell(currentParentId);
+					if (currentParent && typeof currentParent.unembed === "function") {
+						currentParent.unembed(model);
+						if (
+							window.__jointPatches &&
+							typeof window.__jointPatches.normalizeEmbedsOfCell === "function"
+						) {
+							window.__jointPatches.normalizeEmbedsOfCell(currentParent);
+						}
+					}
+				} catch (e) {
+					console.warn("Failed to unembed from previous parent", e);
+				}
+			}
+
+			const finalParentId = getParentId();
+			if (finalParentId && String(finalParentId) === String(parent.id)) return;
+			if (embedsContains(parent, modelId)) return;
+
+			safeEmbed(parent, model, graph);
+
+			try {
+				if (
+					Array.isArray(parent.attributes.customAttributes) &&
+					parent.attributes.customAttributes.length > 0
+				) {
+					parent.updateTable(parent.get("customAttributes") || []);
+				} else if (typeof parent.realignChildrenInGrid === "function") {
+					parent.realignChildrenInGrid();
+				}
+			} catch (e) {
+				console.warn("Failed to update parent visuals after embed", e);
+			}
 		});
+
 		paper.on("element:pointerdblclick", () => {
 			$rootScope.$broadcast("command:openmenu");
 		});
@@ -347,9 +666,31 @@ const controller = function (
 	};
 
 	$("#mutualExclusionBtn").on("click", function () {
+		selectedContainers = selectedContainers
+			.filter(
+				(c) =>
+					c &&
+					c.id &&
+					configs.graph &&
+					typeof configs.graph.getCell === "function" &&
+					configs.graph.getCell(c.id),
+			)
+			.map((c) => configs.graph.getCell(c.id));
+
 		if (selectedContainers.length < 2) {
 			alert("Select at least two containers to merge!");
 			return;
+		}
+
+		if (
+			window.__jointPatches &&
+			typeof window.__jointPatches.normalizeAllEmbeds === "function"
+		) {
+			try {
+				window.__jointPatches.normalizeAllEmbeds(configs.graph);
+			} catch (e) {
+				console.warn(e);
+			}
 		}
 
 		const braceCell = nosql.createMutualExclusionBrace(
@@ -357,38 +698,124 @@ const controller = function (
 			configs.graph,
 		);
 
+		const selectedIds = selectedContainers.map((c) => String(c.id));
+
+		// get all cells once
 		const allCells = configs.graph.getCells();
-		const parentContainer = allCells.find((cell) =>
-			selectedContainers.every(
-				(child) =>
-					cell.getEmbeddedCells &&
-					cell.getEmbeddedCells().some((c) => c.id === child.id),
-			),
-		);
+
+		// extract embedded ids from a parent cell in many shapes
+		function getEmbeddedIdsFromCell(cell) {
+			try {
+				let embedded = [];
+				if (typeof cell.getEmbeddedCells === "function") {
+					embedded = cell.getEmbeddedCells() || [];
+				} else {
+					embedded = cell.get && cell.get("embeds") ? cell.get("embeds") : [];
+				}
+
+				// normalize various representations to array of id strings
+				if (Array.isArray(embedded)) {
+					return embedded
+						.map((e) =>
+							e && e.id
+								? String(e.id)
+								: typeof e === "string" || typeof e === "number"
+								? String(e)
+								: null,
+						)
+						.filter(Boolean);
+				}
+
+				if (embedded && typeof embedded.toArray === "function") {
+					try {
+						return embedded
+							.toArray()
+							.map((e) =>
+								e && e.id
+									? String(e.id)
+									: typeof e === "string" || typeof e === "number"
+									? String(e)
+									: null,
+							)
+							.filter(Boolean);
+					} catch (err) {
+						console.log(err);
+					}
+				}
+
+				if (typeof embedded === "object") {
+					return Object.keys(embedded)
+						.map((k) => embedded[k])
+						.map((v) =>
+							v && v.id
+								? String(v.id)
+								: typeof v === "string" || typeof v === "number"
+								? String(v)
+								: null,
+						)
+						.filter(Boolean);
+				}
+
+				if (typeof embedded === "string" || typeof embedded === "number") {
+					return [String(embedded)];
+				}
+
+				return [];
+			} catch (e) {
+				return [];
+			}
+		}
+
+		// find a parent container that contains all selected ids
+		const parentContainer = allCells.find((cell) => {
+			try {
+				const embeddedIds = getEmbeddedIdsFromCell(cell);
+				if (!embeddedIds || embeddedIds.length === 0) return false;
+				// every selected id must be present among embeddedIds
+				return selectedIds.every((id) => embeddedIds.includes(String(id)));
+			} catch (e) {
+				return false;
+			}
+		});
 
 		if (!parentContainer) {
-			console.warn("No parent found for mutual exclusion.");
-		} else {
+			console.warn(
+				"No parent found for mutual exclusion. Aborting. Selected IDs:",
+				selectedIds,
+			);
+			selectedContainers.forEach((cell) => {
+				const v = configs.paper.findViewByModel(cell);
+				if (v && typeof v.unhighlight === "function") v.unhighlight("body");
+			});
+			selectedContainers = [];
+			alert("No common parent found for the selected containers.");
+			return;
+		}
+
+		try {
 			let mutuals = parentContainer.get("mutualExclusions");
 			if (!Array.isArray(mutuals)) {
-				mutuals = mutuals ? [mutuals] : [];
+				mutuals = mutuals ? (Array.isArray(mutuals) ? mutuals : [mutuals]) : [];
 			}
 
 			const mutualEntry = {
-				id: braceCell && braceCell.id ? braceCell.id : `me_${Date.now()}`, // id do brace ou id gerado
+				id: braceCell && braceCell.id ? braceCell.id : `me_${Date.now()}`,
 				members: selectedContainers.map((c) => c.id),
 				createdAt: new Date().toISOString(),
 			};
 
 			mutuals.push(mutualEntry);
 			parentContainer.set("mutualExclusions", mutuals);
-
 			parentContainer.set("mutualExclusionCount", mutuals.length);
+		} catch (e) {
+			console.error("Failed to update mutual exclusions on parent:", e);
 		}
 
-		selectedContainers.forEach((cell) =>
-			configs.paper.findViewByModel(cell).unhighlight("body"),
-		);
+		selectedContainers.forEach((cell) => {
+			const view = configs.paper.findViewByModel(cell);
+			if (view && typeof view.unhighlight === "function")
+				view.unhighlight("body");
+		});
 		selectedContainers = [];
 	});
 	const registerShortcuts = () => {
@@ -437,7 +864,233 @@ const controller = function (
 
 		graph.on("add", (model) => {
 			setIsDirty(true);
-			if (model instanceof joint.dia.Link) return;
+			if (!model || model instanceof joint.dia.Link) return;
+			if (configs._suppressAddChecks) return;
+			if (typeof isBlock !== "function" || !isBlock(model)) return;
+
+			const p = model.get && model.get("parent");
+			const parentId = Array.isArray(p) ? p[0] : p;
+			if (parentId) return;
+
+			if (model.__validatingAdd) return;
+			model.__validatingAdd = true;
+
+			setTimeout(() => {
+				try {
+					if (
+						!configs.graph ||
+						!configs.graph.getCell ||
+						!configs.graph.getCell(model.id)
+					) {
+						delete model.__validatingAdd;
+						return;
+					}
+
+					const tryFindParents = () => {
+						if (
+							!configs.graph ||
+							typeof configs.graph.findModelsUnderElement !== "function"
+						)
+							return null;
+						try {
+							const parents = configs.graph.findModelsUnderElement(model) || [];
+							return parents.length ? parents[parents.length - 1] : null;
+						} catch (e) {
+							return null;
+						}
+					};
+
+					const candidateFromFind = tryFindParents();
+					if (candidateFromFind) {
+						const ok =
+							typeof canEmbedBasedOnTypes === "function"
+								? canEmbedBasedOnTypes(model, candidateFromFind, configs.graph)
+								: typeof isCollection === "function" &&
+								  isCollection(candidateFromFind);
+						if (ok) {
+							candidateFromFind.embed(model);
+							if (
+								window.__jointPatches &&
+								typeof window.__jointPatches.normalizeEmbedsOfCell ===
+									"function"
+							) {
+								window.__jointPatches.normalizeEmbedsOfCell(candidateFromFind);
+							}
+							delete model.__validatingAdd;
+							return;
+						}
+					}
+
+					const pos = model.get && model.get("position");
+					const size = model.get && model.get("size");
+					if (pos) {
+						const cx = pos.x + (size && size.width ? size.width / 2 : 0);
+						const cy = pos.y + (size && size.height ? size.height / 2 : 0);
+						const all =
+							configs.graph && typeof configs.graph.getCells === "function"
+								? configs.graph.getCells()
+								: [];
+						for (let i = 0; i < all.length; i++) {
+							const col = all[i];
+							if (
+								!col ||
+								typeof isCollection !== "function" ||
+								!isCollection(col)
+							)
+								continue;
+							const colPos = col.get && col.get("position");
+							const colSize = col.get && col.get("size");
+							if (!colPos || !colSize) continue;
+							const left = colPos.x;
+							const top = colPos.y;
+							const right = colPos.x + (colSize.width || 0);
+							const bottom = colPos.y + (colSize.height || 0);
+							if (cx >= left && cx <= right && cy >= top && cy <= bottom) {
+								col.embed(model);
+								if (
+									window.__jointPatches &&
+									typeof window.__jointPatches.normalizeEmbedsOfCell ===
+										"function"
+								) {
+									window.__jointPatches.normalizeEmbedsOfCell(col);
+								}
+								delete model.__validatingAdd;
+								return;
+							}
+						}
+					}
+
+					const isActuallyOrphan = (() => {
+						const pp = model.get && model.get("parent");
+						if (pp && (Array.isArray(pp) ? pp[0] : pp)) return false;
+
+						const idStr = String(model.id);
+						const cells =
+							configs.graph && typeof configs.graph.getCells === "function"
+								? configs.graph.getCells()
+								: [];
+						for (let j = 0; j < cells.length; j++) {
+							const c = cells[j];
+							if (!c || !c.get) continue;
+							if (typeof c.getEmbeddedCells === "function") {
+								try {
+									const em = c.getEmbeddedCells() || [];
+									if (
+										em.some((e) =>
+											e && e.id ? String(e.id) === idStr : String(e) === idStr,
+										)
+									)
+										return false;
+								} catch (e) {
+									console.error(e);
+								}
+							}
+							try {
+								const raw = c.get && c.get("embeds");
+								if (!raw) continue;
+								if (
+									Array.isArray(raw) &&
+									raw.some((x) =>
+										x && x.id ? String(x.id) === idStr : String(x) === idStr,
+									)
+								)
+									return false;
+								if (raw && typeof raw.toArray === "function") {
+									try {
+										if (
+											raw
+												.toArray()
+												.some((x) =>
+													x && x.id
+														? String(x.id) === idStr
+														: String(x) === idStr,
+												)
+										)
+											return false;
+									} catch (e) {}
+								}
+								if (typeof raw === "object") {
+									const vals = Object.keys(raw).map((k) => raw[k]);
+									if (
+										vals.some((v) =>
+											v && v.id ? String(v.id) === idStr : String(v) === idStr,
+										)
+									)
+										return false;
+								}
+								if (String(raw) === idStr) return false;
+							} catch (e) {}
+						}
+
+						if (
+							configs.graph &&
+							typeof configs.graph.findModelsUnderElement === "function"
+						) {
+							try {
+								const parents =
+									configs.graph.findModelsUnderElement(model) || [];
+								if (parents && parents.length) return false;
+							} catch (e) {}
+						}
+
+						try {
+							if (pos) {
+								const all2 =
+									configs.graph && typeof configs.graph.getCells === "function"
+										? configs.graph.getCells()
+										: [];
+								for (let k = 0; k < all2.length; k++) {
+									const col = all2[k];
+									if (
+										!col ||
+										typeof isCollection !== "function" ||
+										!isCollection(col)
+									)
+										continue;
+									const colPos = col.get && col.get("position");
+									const colSize = col.get && col.get("size");
+									if (!colPos || !colSize) continue;
+									const left = colPos.x;
+									const top = colPos.y;
+									const right = colPos.x + (colSize.width || 0);
+									const bottom = colPos.y + (colSize.height || 0);
+									if (cx >= left && cx <= right && cy >= top && cy <= bottom)
+										return false;
+								}
+							}
+						} catch (e) {}
+
+						return true;
+					})();
+
+					if (!isActuallyOrphan) {
+						delete model.__validatingAdd;
+						return;
+					}
+
+					if (typeof ctrl.showFeedback === "function") {
+						ctrl.showFeedback(
+							true,
+							"Um bloco não pode existir sozinho e foi removido.",
+						);
+						setTimeout(() => {
+							try {
+								ctrl.showFeedback(false, "");
+							} catch (e) {}
+						}, 3000);
+					}
+					if (
+						configs.graph &&
+						typeof configs.graph.removeCells === "function"
+					) {
+						configs.graph.removeCells([model]);
+					} else if (typeof model.remove === "function") {
+						model.remove();
+					}
+				} finally {
+					delete model.__validatingAdd;
+				}
+			}, 80);
 		});
 	};
 
@@ -462,7 +1115,215 @@ const controller = function (
 			},
 		});
 		ctrl.paper = configs.paper;
+		(function () {
+			if (!window.joint || !joint.dia || !joint.dia.Cell) return;
+			if (window.__embed_guard_installed) return;
+			window.__embed_guard_installed = true;
 
+			const origEmbed = joint.dia.Cell.prototype.embed;
+
+			function _idOf(cell) {
+				try {
+					return cell && (cell.id || (cell.get && cell.get("id")));
+				} catch (e) {
+					return undefined;
+				}
+			}
+
+			joint.dia.Cell.prototype.embed = function (child) {
+				const callee = this;
+				const arg = child;
+				const graphRef =
+					typeof configs !== "undefined" && configs && configs.graph
+						? configs.graph
+						: this.graph || window.__embedGraph || null;
+
+				try {
+					const calleeParentRaw =
+						callee && callee.get ? callee.get("parent") : null;
+					const calleeParentId = Array.isArray(calleeParentRaw)
+						? calleeParentRaw[0]
+						: calleeParentRaw;
+
+					const argParentRaw = arg && arg.get ? arg.get("parent") : null;
+					const argParentId = Array.isArray(argParentRaw)
+						? argParentRaw[0]
+						: argParentRaw;
+
+					if (
+						calleeParentId &&
+						arg &&
+						arg.id &&
+						String(calleeParentId) === String(arg.id)
+					) {
+						return this;
+					}
+
+					if (
+						argParentId &&
+						callee &&
+						callee.id &&
+						String(argParentId) === String(callee.id)
+					) {
+						console.warn(
+							"[EMBED GUARD] blocked: would create cycle (arg parent equals callee)",
+							callee.id,
+							arg && arg.id,
+						);
+						return this;
+					}
+
+					if (!arg || !arg.id) {
+						return origEmbed.apply(this, arguments);
+					}
+
+					if (typeof isCollection === "function" && isCollection(arg)) {
+						console.warn(
+							"[EMBED GUARD] blocked: child is collection",
+							arg && arg.id,
+						);
+						return this;
+					}
+					if (
+						typeof isCollection === "function" &&
+						isCollection(callee) &&
+						isCollection(arg)
+					) {
+						console.warn(
+							"[EMBED GUARD] blocked: collection inside collection",
+							callee && callee.id,
+							arg && arg.id,
+						);
+						return this;
+					}
+					if (
+						typeof isBlock === "function" &&
+						isBlock(arg) &&
+						isBlock(callee)
+					) {
+						if (typeof hasCollectionAncestor === "function" && graphRef) {
+							if (!hasCollectionAncestor(callee, graphRef)) {
+								console.warn(
+									"[EMBED GUARD] blocked: block->block (parent lacks Collection ancestor)",
+									callee && callee.id,
+									arg && arg.id,
+								);
+								return this;
+							}
+						}
+					}
+
+					try {
+						return origEmbed.apply(this, arguments);
+					} catch (err) {
+						const msg = err && err.message ? err.message : String(err);
+
+						try {
+							const nowParentRaw = arg && arg.get ? arg.get("parent") : null;
+							const nowParentId = Array.isArray(nowParentRaw)
+								? nowParentRaw[0]
+								: nowParentRaw;
+							if (nowParentId && String(nowParentId) === String(arg.id)) {
+								return this;
+							}
+							const childNowParentRaw =
+								callee && callee.get ? callee.get("parent") : null;
+							const childNowParentId = Array.isArray(childNowParentRaw)
+								? childNowParentRaw[0]
+								: childNowParentRaw;
+							if (
+								childNowParentId &&
+								arg &&
+								arg.id &&
+								String(childNowParentId) === String(arg.id)
+							) {
+								return this;
+							}
+						} catch (ignore) {}
+
+						if (
+							msg.indexOf &&
+							msg.indexOf("Embedding of already embedded cells") !== -1
+						) {
+							try {
+								if (typeof arg.embed === "function" && arg !== callee) {
+									try {
+										try {
+											const childParentRaw =
+												callee && callee.get ? callee.get("parent") : null;
+											const childParentId = Array.isArray(childParentRaw)
+												? childParentRaw[0]
+												: childParentRaw;
+											if (
+												childParentId &&
+												graphRef &&
+												typeof graphRef.getCell === "function"
+											) {
+												const prevParent = graphRef.getCell(childParentId);
+												if (
+													prevParent &&
+													typeof prevParent.unembed === "function"
+												) {
+													prevParent.unembed(callee);
+													if (
+														window.__jointPatches &&
+														typeof window.__jointPatches
+															.normalizeEmbedsOfCell === "function"
+													) {
+														window.__jointPatches.normalizeEmbedsOfCell(
+															prevParent,
+														);
+													}
+												}
+											}
+										} catch (_) {}
+										arg.embed(callee);
+										if (
+											window.__jointPatches &&
+											typeof window.__jointPatches.normalizeEmbedsOfCell ===
+												"function"
+										) {
+											window.__jointPatches.normalizeEmbedsOfCell(arg);
+										}
+										return this;
+									} catch (err2) {
+										console.warn(
+											"[EMBED GUARD] inverse embed attempt failed",
+											err2,
+										);
+									}
+								}
+							} catch (e2) {}
+						}
+
+						console.warn(
+							"[EMBED GUARD] embed call failed and was normalized (returning).",
+							err,
+						);
+						return this;
+					}
+				} catch (outerErr) {
+					try {
+						return origEmbed.apply(this, arguments);
+					} catch (e) {
+						return this;
+					}
+				}
+			};
+
+			window.__restore_orig_embed = function () {
+				try {
+					if (origEmbed) joint.dia.Cell.prototype.embed = origEmbed;
+					window.__embed_guard_installed = false;
+					delete window.__restore_orig_embed;
+					console.info("Embed guard removed; original embed restored");
+				} catch (e) {
+					console.error("Failed to restore embed", e);
+				}
+			};
+
+			console.info("Robust embed guard installed");
+		})();
 		let refModeActive = false;
 		let selectedReferenceCollection = null;
 
@@ -472,7 +1333,7 @@ const controller = function (
 			alert("Selecione a coleção a ser referenciada");
 		};
 
-		configs.paper.on("element:pointerdown", function (cellView) {
+		configs.paper.on("element:pointerup", function (cellView) {
 			if (!refModeActive) return;
 
 			const model = cellView.model;
@@ -507,52 +1368,190 @@ const controller = function (
 			selectedReferenceCollection = null;
 			alert("Atributo de referência criado!");
 		});
+		function bringDescendantsToFront(parent) {
+			try {
+				if (!parent || !configs || !configs.paper || !configs.graph) return;
+
+				if (
+					window.__jointPatches &&
+					typeof window.__jointPatches.normalizeEmbedsOfCell === "function"
+				) {
+					try {
+						window.__jointPatches.normalizeEmbedsOfCell(parent);
+					} catch (e) {
+						console.warn(
+							"bringDescendantsToFront: normalizeEmbedsOfCell failed",
+							e,
+						);
+					}
+				}
+
+				function getImmediateChildren(cell) {
+					let raw = [];
+					try {
+						if (typeof cell.getEmbeddedCells === "function") {
+							raw = cell.getEmbeddedCells() || [];
+						} else {
+							raw = cell.get && cell.get("embeds") ? cell.get("embeds") : [];
+						}
+					} catch (e) {
+						raw = cell.get && cell.get("embeds") ? cell.get("embeds") : [];
+					}
+					if (Array.isArray(raw)) {
+						return raw
+							.map((r) =>
+								r && r.id
+									? r
+									: typeof r === "string" || typeof r === "number"
+									? configs.graph.getCell(String(r))
+									: r,
+							)
+							.filter(Boolean);
+					}
+					if (raw && typeof raw.toArray === "function") {
+						try {
+							return raw
+								.toArray()
+								.map((r) =>
+									r && r.id
+										? r
+										: typeof r === "string" || typeof r === "number"
+										? configs.graph.getCell(String(r))
+										: r,
+								)
+								.filter(Boolean);
+						} catch (e) {
+							return [];
+						}
+					}
+					if (typeof raw === "object") {
+						return Object.keys(raw)
+							.map((k) => raw[k])
+							.map((r) =>
+								r && r.id
+									? r
+									: typeof r === "string" || typeof r === "number"
+									? configs.graph.getCell(String(r))
+									: r,
+							)
+							.filter(Boolean);
+					}
+					if (typeof raw === "string" || typeof raw === "number") {
+						const c = configs.graph.getCell(String(raw));
+						return c ? [c] : [];
+					}
+					return [];
+				}
+
+				const nodes = [];
+				const queue = [];
+				nodes.push(parent);
+				queue.push(parent);
+
+				while (queue.length) {
+					const cur = queue.shift();
+					const children = getImmediateChildren(cur);
+					for (let i = 0; i < children.length; i++) {
+						const ch = children[i];
+						// normalize child embeds too before exploring
+						if (
+							window.__jointPatches &&
+							typeof window.__jointPatches.normalizeEmbedsOfCell === "function"
+						) {
+							try {
+								window.__jointPatches.normalizeEmbedsOfCell(ch);
+							} catch (e) {}
+						}
+						nodes.push(ch);
+						queue.push(ch);
+					}
+				}
+
+				if (!nodes.length) return;
+
+				requestAnimationFrame(() => {
+					requestAnimationFrame(() => {
+						nodes.forEach((n) => {
+							try {
+								const view = configs.paper.findViewByModel
+									? configs.paper.findViewByModel(n)
+									: null;
+								if (view && typeof view.toFront === "function") {
+									view.toFront();
+								} else if (n && typeof n.toFront === "function") {
+									n.toFront();
+								}
+							} catch (e) {
+								console.warn(
+									"bringDescendantsToFront: child toFront failed",
+									e,
+								);
+							}
+						});
+					});
+				});
+			} catch (err) {
+				console.warn("bringDescendantsToFront error", err);
+			}
+		}
 		ctrl.onSelectElement = (cellView) => {
 			if (cellView != null) {
 				configs.elementSelector.cancel();
+
 				$timeout(() => {
+					const model = cellView.model;
+
 					try {
-						const model = cellView.model;
 						if (model && typeof model.get === "function") {
 							const rawEmbeds = model.get("embeds");
 							if (rawEmbeds && !Array.isArray(rawEmbeds)) {
-								model.set(
-									"embeds",
-									Array.isArray(rawEmbeds) ? rawEmbeds : [rawEmbeds],
-									{ silent: true },
-								);
-							} else if (!rawEmbeds) {
-								model.set("embeds", [], { silent: true });
+								if (
+									window.__jointPatches &&
+									typeof window.__jointPatches.normalizeEmbedsOfCell ===
+										"function"
+								) {
+									try {
+										window.__jointPatches.normalizeEmbedsOfCell(model);
+									} catch (e) {
+										console.warn(
+											"onSelectElement: normalizeEmbedsOfCell failed",
+											e,
+										);
+									}
+								} else if (
+									typeof rawEmbeds === "string" ||
+									typeof rawEmbeds === "number" ||
+									(rawEmbeds && rawEmbeds.id)
+								) {
+									model.set(
+										"embeds",
+										Array.isArray(rawEmbeds) ? rawEmbeds : [rawEmbeds],
+										{ silent: true },
+									);
+								}
 							}
 						}
 					} catch (err) {
 						console.warn("onSelectElement: failed to normalize embeds", err);
 					}
 
-					try {
-						cellView.model.toFront({ deep: true });
-					} catch (err) {
-						console.warn(
-							"onSelectElement: toFront({deep:true}) failed, trying without deep",
-							err,
-						);
+					const view = configs.paper.findViewByModel(model);
+					if (view && typeof view.toFront === "function") {
+						view.toFront();
+					} else {
 						try {
-							cellView.model.toFront();
-						} catch (err2) {
-							console.error(
-								"onSelectElement: fallback toFront also failed",
-								err2,
-							);
-						}
+							model.toFront();
+						} catch (e) {}
 					}
+					bringDescendantsToFront(model);
 
 					ctrl.selectedElement = {
-						model: cellView.model,
-						value: cellView.model.attributes?.attrs?.headerText?.text,
-						type: cellView.model.attributes?.supertype,
+						model: model,
+						value: model.attributes?.attrs?.headerText?.text,
+						type: model.attributes?.supertype,
 						element: cellView,
 					};
-				});
+				}, 40);
 				return;
 			}
 
@@ -605,7 +1604,18 @@ const controller = function (
 			},
 			customAttributes: [],
 		});
-		enditorManager.loadElements([containerParent]);
+		const containerBlock = new joint.shapes.nosql.Collection({
+			size: { width: 100, height: 100 },
+			z: 1,
+			position: { x: 10, y: 150 },
+			attrs: {
+				headerText: { text: "Bloco" },
+				customText: { text: "" },
+			},
+			customAttributes: [],
+			containerType: "block",
+		});
+		enditorManager.loadElements([containerParent, containerBlock]);
 
 		registerShortcuts();
 	};
@@ -636,6 +1646,7 @@ const controller = function (
 		ctrl.newAttributeName = "";
 		ctrl.newAttributeType = "";
 	};
+
 	ctrl.$onInit = () => {
 		ctrl.toolsViewService = new ToolsViewService();
 		ctrl.setLoading(true);
@@ -652,6 +1663,14 @@ const controller = function (
 				ctrl.model.model = jsonModel;
 
 				configs.graph.fromJSON(jsonModel);
+				if (window.__jointPatches) {
+					try {
+						window.__jointPatches.normalizeAllEmbeds(configs.graph);
+					} catch (e) {}
+					try {
+						window.__jointPatches.wireNormalizeOnEmbed(configs.graph);
+					} catch (e) {}
+				}
 				const selectedId = ctrl.selectedElement?.model?.id;
 
 				ctrl.graph = configs.graph;
