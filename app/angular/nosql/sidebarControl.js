@@ -13,7 +13,19 @@ const configurator = () => {
 	};
 
 	const select = (element) => {
-		switch (element.type) {
+		const incoming = element && element.model ? element.model : element;
+
+		const type =
+			(incoming && incoming.attributes && incoming.attributes.supertype) ||
+			(incoming && incoming.type) ||
+			(incoming && incoming.supertype) ||
+			(incoming &&
+				incoming.attrs &&
+				incoming.attrs.headerText &&
+				incoming.attrs.headerText.text &&
+				"Collection");
+
+		switch (type) {
 			case "Collection":
 				configuration.collection = true;
 				return configuration;
@@ -66,7 +78,7 @@ const controller = function ($rootScope, $timeout) {
 			!$ctrl.selectedElement ||
 			typeof $ctrl.selectedElement.get !== "function"
 		) {
-			console.warn("Nome/tipo vazio ou seleção inválida.");
+			console.warn("Empty name/type or invalid selection.");
 			return;
 		}
 
@@ -156,14 +168,25 @@ const controller = function ($rootScope, $timeout) {
 	};
 
 	$ctrl.$onChanges = (changes) => {
-		if (changes.selected && changes.selected.currentValue) {
-			$ctrl.configuration = configurator().select(
-				changes.selected.currentValue,
-			);
-			const selected =
-				changes.selected.currentValue.model || changes.selected.currentValue;
-			$ctrl.selectedElement = selected;
+		const incoming = changes.selected && changes.selected.currentValue;
+		$ctrl.configuration = configurator().select(incoming || {});
+
+		if (!incoming) {
+			$ctrl.selectedElement = {};
+			return;
 		}
+
+		const selected = incoming.model || incoming;
+
+		if (selected && selected.attributes && selected.attributes.containerType) {
+			try {
+				selected.containerType = selected.attributes.containerType;
+			} catch (e) {
+				console.error(e);
+			}
+		}
+
+		$ctrl.selectedElement = selected;
 	};
 
 	$ctrl.changeVisible = () => {
@@ -171,7 +194,6 @@ const controller = function ($rootScope, $timeout) {
 	};
 
 	$ctrl.hasMultipleSelection = function () {
-
 		return $ctrl.selectedContainers && $ctrl.selectedContainers.length > 1;
 	};
 
@@ -179,7 +201,7 @@ const controller = function ($rootScope, $timeout) {
 		const el = $ctrl.selectedElement;
 		const jointShape = el.jointElement || el;
 		if (jointShape && typeof jointShape.set === "function") {
-			jointShape.set("cardinalityEnabled", el.cardinalityEnabled); // ← ESSENCIAL!
+			jointShape.set("cardinalityEnabled", el.cardinalityEnabled);
 			if (el.cardinalityEnabled) {
 				jointShape.set("minCardinality", el.minCardinality ?? 0);
 				jointShape.set("maxCardinality", el.maxCardinality || "N");
@@ -198,11 +220,9 @@ const controller = function ($rootScope, $timeout) {
 			$ctrl.selectedElement.jointElement || $ctrl.selectedElement;
 		if (jointShape && typeof jointShape.set === "function") {
 			if (!attr.cardinalityEnabled) {
-
 				attr.minCardinality = undefined;
 				attr.maxCardinality = undefined;
 			} else {
-
 				attr.minCardinality = attr.minCardinality ?? 0;
 				attr.maxCardinality =
 					attr.maxCardinality === "" ? "N" : attr.maxCardinality;
