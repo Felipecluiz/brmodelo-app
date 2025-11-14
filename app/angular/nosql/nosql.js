@@ -479,6 +479,56 @@ const controller = function (
 			});
 			configs.selectedElementActions = elementActions;
 			elementActions.render();
+
+			try {
+				const model = cellView.model;
+				const resizeBtn =
+					elementActions.el &&
+					(elementActions.el.querySelector('[data-action="resize"]') ||
+						elementActions.el.querySelector('.action[data-action="resize"]') ||
+						elementActions.el.querySelector(".resize"));
+
+				if (resizeBtn) {
+					const onResizeMouseDown = (e) => {
+						try {
+							model.__manualResize = true;
+							window.__currentlyManualResizingModelId = String(model.id);
+
+							try {
+								enforceMinSizeForModel(model);
+							} catch (_) {}
+
+							const clear = () => {
+								setTimeout(() => {
+									delete model.__manualResize;
+									try {
+										delete model.__enforcingMinSize;
+									} catch (_) {}
+									if (
+										window.__currentlyManualResizingModelId === String(model.id)
+									) {
+										delete window.__currentlyManualResizingModelId;
+									}
+								}, 60);
+								document.removeEventListener("mouseup", clear);
+							};
+							document.addEventListener("mouseup", clear);
+						} catch (err) {
+							console.warn("Failed to set manual resize flag", err);
+						}
+					};
+
+					if (!elementActions.__onResizeMouseDown) {
+						resizeBtn.addEventListener("mousedown", onResizeMouseDown);
+						elementActions.__onResizeMouseDown = onResizeMouseDown;
+					}
+				}
+			} catch (e) {
+				console.warn(
+					"Could not attach manual-resize marker to element actions",
+					e,
+				);
+			}
 		});
 		paper.on("element:mouseover", function (cellView) {
 			const model = cellView.model;
@@ -542,11 +592,9 @@ const controller = function (
 				return String(raw) === String(id);
 			}
 
-			// If already consistent, nothing to do
 			if (currentParentId && String(currentParentId) === String(parent.id))
 				return;
 
-			// If parent claims to embed the model but model disagrees -> try to normalize/fix
 			if (embedsContains(parent, modelId)) {
 				try {
 					if (
@@ -700,10 +748,8 @@ const controller = function (
 
 		const selectedIds = selectedContainers.map((c) => String(c.id));
 
-		// get all cells once
 		const allCells = configs.graph.getCells();
 
-		// extract embedded ids from a parent cell in many shapes
 		function getEmbeddedIdsFromCell(cell) {
 			try {
 				let embedded = [];
@@ -713,15 +759,14 @@ const controller = function (
 					embedded = cell.get && cell.get("embeds") ? cell.get("embeds") : [];
 				}
 
-				// normalize various representations to array of id strings
 				if (Array.isArray(embedded)) {
 					return embedded
 						.map((e) =>
 							e && e.id
 								? String(e.id)
 								: typeof e === "string" || typeof e === "number"
-								? String(e)
-								: null,
+									? String(e)
+									: null,
 						)
 						.filter(Boolean);
 				}
@@ -734,8 +779,8 @@ const controller = function (
 								e && e.id
 									? String(e.id)
 									: typeof e === "string" || typeof e === "number"
-									? String(e)
-									: null,
+										? String(e)
+										: null,
 							)
 							.filter(Boolean);
 					} catch (err) {
@@ -750,8 +795,8 @@ const controller = function (
 							v && v.id
 								? String(v.id)
 								: typeof v === "string" || typeof v === "number"
-								? String(v)
-								: null,
+									? String(v)
+									: null,
 						)
 						.filter(Boolean);
 				}
@@ -766,12 +811,10 @@ const controller = function (
 			}
 		}
 
-		// find a parent container that contains all selected ids
 		const parentContainer = allCells.find((cell) => {
 			try {
 				const embeddedIds = getEmbeddedIdsFromCell(cell);
 				if (!embeddedIds || embeddedIds.length === 0) return false;
-				// every selected id must be present among embeddedIds
 				return selectedIds.every((id) => embeddedIds.includes(String(id)));
 			} catch (e) {
 				return false;
@@ -861,7 +904,74 @@ const controller = function (
 		});
 
 		graph.on("change:position", function (cell) {});
+		configs.graph.on("change:size", function (model) {
+			if (!model) return;
 
+			if (model.__minSizeTimeout) clearTimeout(model.__minSizeTimeout);
+			model.__minSizeTimeout = setTimeout(() => {
+				try {
+					if (
+						model.__manualResize ||
+						(window.__currentlyManualResizingModelId &&
+							String(window.__currentlyManualResizingModelId) ===
+								String(model.id))
+					) {
+						enforceMinSizeForModel(model);
+					}
+					try {
+						let current = model;
+						let depth = 0;
+						while (current && depth < 50) {
+							const pRaw = current.get && current.get("parent");
+							const parentId = Array.isArray(pRaw) ? pRaw[0] : pRaw;
+							if (!parentId) break;
+							const parent =
+								configs.graph && typeof configs.graph.getCell === "function"
+									? configs.graph.getCell(parentId)
+									: null;
+							if (!parent) break;
+
+							if (
+								parent.__manualResize ||
+								(window.__currentlyManualResizingModelId &&
+									String(window.__currentlyManualResizingModelId) ===
+										String(parent.id))
+							) {
+								enforceMinSizeForModel(parent);
+								break;
+							}
+							current = parent;
+							depth++;
+						}
+					} catch (e) {
+						console.warn("Failed to enforce min size on ancestors", e);
+					}
+
+					try {
+						const children =
+							typeof model.getEmbeddedCells === "function"
+								? model.getEmbeddedCells() || []
+								: [];
+						for (let i = 0; i < children.length; i++) {
+							const ch = children[i];
+							if (!ch) continue;
+							if (
+								ch.__manualResize ||
+								(window.__currentlyManualResizingModelId &&
+									String(window.__currentlyManualResizingModelId) ===
+										String(ch.id))
+							) {
+								enforceMinSizeForModel(model);
+								break;
+							}
+						}
+					} catch (e) {}
+				} finally {
+					clearTimeout(model.__minSizeTimeout);
+					delete model.__minSizeTimeout;
+				}
+			}, 25);
+		});
 		graph.on("add", (model) => {
 			setIsDirty(true);
 			if (!model || model instanceof joint.dia.Link) return;
@@ -906,7 +1016,7 @@ const controller = function (
 							typeof canEmbedBasedOnTypes === "function"
 								? canEmbedBasedOnTypes(model, candidateFromFind, configs.graph)
 								: typeof isCollection === "function" &&
-								  isCollection(candidateFromFind);
+									isCollection(candidateFromFind);
 						if (ok) {
 							candidateFromFind.embed(model);
 							if (
@@ -1093,7 +1203,133 @@ const controller = function (
 			}, 80);
 		});
 	};
+	function computeMinSizeFromModel(model) {
+		if (!model) return { width: 0, height: 0 };
 
+		const defaultTableX = typeof tableX !== "undefined" ? tableX : 20;
+		const defaultTableBgWidth =
+			typeof attrs !== "undefined" && attrs.tableBg && attrs.tableBg.width
+				? attrs.tableBg.width
+				: 200;
+		const defaultTableY = typeof tableY !== "undefined" ? tableY : 20;
+		const defaultHeaderHeight =
+			typeof headerHeight !== "undefined" ? headerHeight : 30;
+		const defaultCellHeight =
+			typeof cellHeight !== "undefined" ? cellHeight : 30;
+		const defaultPadding = 12;
+		const defaultBorder = 2;
+
+		try {
+			const a =
+				(typeof model.get === "function" && model.get("attrs")) ||
+				(model.attributes && model.attributes.attrs) ||
+				{};
+
+			let tableBgWidth = defaultTableBgWidth;
+			if (a && a.tableBg) {
+				const w = a.tableBg.width || a.tableBg["width"];
+				if (typeof w === "number" && w > 0) tableBgWidth = w;
+				else if (typeof w === "string" && !isNaN(parseFloat(w)))
+					tableBgWidth = parseFloat(w);
+			}
+			let tx = defaultTableX;
+			if (a && a.tableBg) {
+				const x = a.tableBg.x || a.tableBg["x"];
+				if (typeof x === "number") tx = x;
+				else if (typeof x === "string" && !isNaN(parseFloat(x)))
+					tx = parseFloat(x);
+			}
+			const requiredWidth = Math.ceil(
+				tx + tableBgWidth + defaultPadding + defaultBorder,
+			);
+
+			let attributesCount = 0;
+			try {
+				const attrsList = model.get && model.get("customAttributes");
+				if (Array.isArray(attrsList)) attributesCount = attrsList.length;
+				else if (attrsList && typeof attrsList === "object")
+					attributesCount = Object.keys(attrsList).length;
+			} catch (e) {
+				attributesCount = 0;
+			}
+			const maxRows = typeof MAX_ROWS !== "undefined" ? MAX_ROWS : 50;
+			const visibleRows = Math.min(attributesCount, maxRows);
+			const requiredHeight = Math.ceil(
+				defaultHeaderHeight +
+					defaultTableY +
+					visibleRows * defaultCellHeight +
+					defaultPadding +
+					defaultBorder,
+			);
+
+			const minHeaderOnly = defaultHeaderHeight + defaultPadding;
+			return {
+				width: Math.max(requiredWidth, minHeaderOnly),
+				height: Math.max(requiredHeight, minHeaderOnly),
+			};
+		} catch (e) {
+			console.warn("computeMinSizeFromModel failed", e);
+			return {
+				width: Math.ceil(
+					defaultTableX + defaultTableBgWidth + defaultPadding + defaultBorder,
+				),
+				height: Math.ceil(
+					defaultHeaderHeight +
+						defaultTableY +
+						3 * defaultCellHeight +
+						defaultPadding +
+						defaultBorder,
+				),
+			};
+		}
+	}
+
+	function enforceMinSizeForModel(model) {
+		if (!model || !configs || !configs.paper) return;
+		if (!model.__manualResize) return;
+		if (model.__enforcingMinSize) return;
+		model.__enforcingMinSize = true;
+
+		setTimeout(() => {
+			try {
+				const view = configs.paper.findViewByModel(model);
+				const size =
+					model.get && model.get("size")
+						? model.get("size")
+						: { width: 0, height: 0 };
+				const currentWidth =
+					size.width ||
+					(view && view.el && view.el.getBoundingClientRect
+						? view.el.getBoundingClientRect().width
+						: 0);
+				const currentHeight =
+					size.height ||
+					(view && view.el && view.el.getBoundingClientRect
+						? view.el.getBoundingClientRect().height
+						: 0);
+
+				const required = computeMinSizeFromModel(model);
+				const needWidth = required.width > currentWidth;
+				const needHeight = required.height > currentHeight;
+
+				if (needWidth || needHeight) {
+					const newSize = {
+						width: needWidth ? required.width : size.width,
+						height: needHeight ? required.height : size.height,
+					};
+					if (newSize.width !== size.width || newSize.height !== size.height) {
+						model.set("size", newSize);
+					}
+				}
+			} catch (err) {
+				console.warn("enforceMinSizeForModel error", err);
+			} finally {
+				setTimeout(() => {
+					delete model.__enforcingMinSize;
+				}, 40);
+			}
+		}, 16);
+	}
 	const buildWorkspace = () => {
 		configs.graph = new joint.dia.Graph({}, { cellNamespace: joint.shapes });
 
@@ -1333,35 +1569,179 @@ const controller = function (
 			alert("Selecione a coleção a ser referenciada");
 		};
 
+		configs.graph.on("remove", function (model) {
+			try {
+				if (!model) return;
+				if (model instanceof joint.dia.Link) return;
+
+				try {
+					if (typeof setIsDirty === "function") setIsDirty(true);
+				} catch (e) {}
+
+				const removedId = String(model.id);
+
+				const all =
+					typeof configs.graph.getCells === "function"
+						? configs.graph.getCells()
+						: [];
+				for (let i = 0; i < all.length; i++) {
+					const cell = all[i];
+					if (
+						!cell ||
+						typeof cell.get !== "function" ||
+						typeof cell.set !== "function"
+					)
+						continue;
+
+					const rawMutuals = cell.get("mutualExclusions");
+					if (!rawMutuals) continue;
+
+					const mutuals = Array.isArray(rawMutuals)
+						? rawMutuals.slice()
+						: [rawMutuals];
+					let changed = false;
+					const remaining = [];
+
+					for (let j = 0; j < mutuals.length; j++) {
+						const entry = mutuals[j];
+						if (!entry || !entry.members) {
+							remaining.push(entry);
+							continue;
+						}
+
+						const members = Array.isArray(entry.members)
+							? entry.members.map((m) => String(m))
+							: typeof entry.members === "string" ||
+								  typeof entry.members === "number"
+								? [String(entry.members)]
+								: [];
+
+						if (members.indexOf(removedId) !== -1) {
+							try {
+								if (entry.id) {
+									const brace = configs.graph.getCell(entry.id);
+									if (brace) {
+										if (typeof configs.graph.removeCells === "function") {
+											configs.graph.removeCells([brace]);
+										} else if (typeof brace.remove === "function") {
+											brace.remove();
+										}
+									}
+								}
+							} catch (e) {
+								console.warn(
+									"Failed to remove mutual-exclusion brace for entry",
+									entry,
+									e,
+								);
+							}
+							changed = true;
+						} else {
+							remaining.push(entry);
+						}
+					}
+
+					if (changed) {
+						try {
+							cell.set("mutualExclusions", remaining, { silent: true });
+							cell.set("mutualExclusionCount", remaining.length, {
+								silent: true,
+							});
+						} catch (e) {
+							try {
+								cell.set("mutualExclusions", remaining);
+								cell.set("mutualExclusionCount", remaining.length);
+							} catch (_) {}
+						}
+
+						try {
+							if (typeof cell.updateTable === "function") {
+								cell.updateTable(cell.get("customAttributes") || []);
+							} else if (typeof cell.realignChildrenInGrid === "function") {
+								cell.realignChildrenInGrid();
+							}
+						} catch (e) {
+							console.warn(
+								"Failed to refresh container visual after removing mutual entry",
+								e,
+							);
+						}
+					}
+				}
+			} catch (err) {
+				console.error("Error handling graph remove for mutual exclusions", err);
+			}
+		});
+
 		configs.paper.on("element:pointerup", function (cellView) {
 			if (!refModeActive) return;
 
 			const model = cellView.model;
+			if (!model) return;
 
 			if (!selectedReferenceCollection) {
+				if (typeof isCollection === "function" && !isCollection(model)) {
+					alert(
+						"Selecione uma coleção como origem do atributo de referência (não um bloco).",
+					);
+					return;
+				}
 				selectedReferenceCollection = model;
 				alert(
-					"Agora selecione a coleção que vai receber o atributo de referência",
+					"Origem selecionada. Agora selecione a coleção que receberá o atributo de referência.",
 				);
 				return;
 			}
 
-			const collectionDestino = model;
+			const collectionDestination = model;
+			if (
+				typeof isCollection === "function" &&
+				!isCollection(collectionDestination)
+			) {
+				alert(
+					"O atributo de referência só pode ser adicionado a coleções. Selecione uma coleção como destino.",
+				);
+				return;
+			}
+
+			const sourceName =
+				selectedReferenceCollection.attr &&
+				selectedReferenceCollection.attr("headerText/text")
+					? selectedReferenceCollection.attr("headerText/text")
+					: selectedReferenceCollection.get &&
+						(selectedReferenceCollection.get("name") ||
+							selectedReferenceCollection.id);
 
 			const refAttribute = {
-				name: "ref_" + selectedReferenceCollection.attr("headerText/text"),
+				name: "ref_" + String(sourceName).replace(/\s+/g, "_"),
 				type: "reference",
 				targetCollectionId: selectedReferenceCollection.id,
-				targetCollectionName:
-					selectedReferenceCollection.attr("headerText/text"),
+				targetCollectionName: String(sourceName),
 			};
 
-			let attributes = collectionDestino.get("customAttributes") || [];
-			attributes.push(refAttribute);
-			collectionDestino.set("customAttributes", attributes);
+			const attributes = collectionDestination.get("customAttributes") || [];
+			const already = attributes.some(
+				(a) =>
+					a &&
+					(a.name === refAttribute.name ||
+						a.targetCollectionId === refAttribute.targetCollectionId),
+			);
+			if (already) {
+				alert("Atributo de referência já existe nesta coleção.");
+				refModeActive = false;
+				selectedReferenceCollection = null;
+				return;
+			}
 
-			if (typeof collectionDestino.updateTable === "function") {
-				collectionDestino.updateTable(attributes);
+			attributes.push(refAttribute);
+			collectionDestination.set("customAttributes", attributes);
+
+			if (typeof collectionDestination.updateTable === "function") {
+				collectionDestination.updateTable(attributes);
+			} else if (
+				typeof collectionDestination.realignChildrenInGrid === "function"
+			) {
+				collectionDestination.realignChildrenInGrid();
 			}
 
 			refModeActive = false;
@@ -1403,8 +1783,8 @@ const controller = function (
 								r && r.id
 									? r
 									: typeof r === "string" || typeof r === "number"
-									? configs.graph.getCell(String(r))
-									: r,
+										? configs.graph.getCell(String(r))
+										: r,
 							)
 							.filter(Boolean);
 					}
@@ -1416,8 +1796,8 @@ const controller = function (
 									r && r.id
 										? r
 										: typeof r === "string" || typeof r === "number"
-										? configs.graph.getCell(String(r))
-										: r,
+											? configs.graph.getCell(String(r))
+											: r,
 								)
 								.filter(Boolean);
 						} catch (e) {
@@ -1431,8 +1811,8 @@ const controller = function (
 								r && r.id
 									? r
 									: typeof r === "string" || typeof r === "number"
-									? configs.graph.getCell(String(r))
-									: r,
+										? configs.graph.getCell(String(r))
+										: r,
 							)
 							.filter(Boolean);
 					}

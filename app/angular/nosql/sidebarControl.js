@@ -58,7 +58,20 @@ const controller = function ($rootScope, $timeout) {
 	};
 
 	$ctrl.updateName = (newName) => {
-		if (newName != "") {
+		if (!newName) return;
+		if ($ctrl.selectedModel && $ctrl.selectedModel.set) {
+			try {
+				if (typeof $ctrl.selectedModel.attr === "function") {
+					$ctrl.selectedModel.attr("headerText/text", newName);
+				}
+				$ctrl.selectedModel.set &&
+					$ctrl.selectedModel.set("name", newName, { silent: true });
+			} catch (e) {
+				console.warn("Failed to set name on model", e);
+			}
+		}
+
+		if ($ctrl.onUpdate) {
 			$ctrl.onUpdate({
 				event: {
 					type: "name",
@@ -66,8 +79,11 @@ const controller = function ($rootScope, $timeout) {
 				},
 			});
 		}
+		$ctrl.sidebarName = newName;
+		try {
+			if (!$scope.$$phase) $scope.$applyAsync();
+		} catch (e) {}
 	};
-
 	$ctrl.newAttributeName = "";
 	$ctrl.newAttributeType = "";
 
