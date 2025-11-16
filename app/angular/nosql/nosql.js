@@ -389,10 +389,13 @@ const controller = function (
 	
 	ctrl.unselectAll = () => {
 		ctrl.showFeedback(false, "");
-		ctrl.onSelectElement(null);
-		if (configs.selectedElementActions != null) {
-			configs.selectedElementActions.remove();
-			configs.selectedElementActions = null;
+		if(ctrl.selectedElement.element != null) {
+			ctrl.selectedElement.element.unhighlight("body");
+			ctrl.onSelectElement(null);
+			if (configs.selectedElementActions != null) {
+				configs.selectedElementActions.remove();
+				configs.selectedElementActions = null;
+			}
 		}
 	};
 
