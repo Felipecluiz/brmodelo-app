@@ -204,15 +204,18 @@ const controller = function ($rootScope, $timeout) {
 
 		const selected = incoming.model || incoming;
 
-		if (selected && selected.attributes && selected.attributes.containerType) {
+		if (selected && selected.attributes) {
 			try {
-				selected.containerType = selected.attributes.containerType;
+				selected.name = selected.attr("headerText/text");
+				if(selected.attributes.containerType) {
+					selected.containerType = selected.attributes.containerType;
+				}
 			} catch (e) {
 				console.error(e);
 			}
 		}
 
-		$ctrl.selectedElement = selected;
+		$ctrl.selectedElement = selected;		
 	};
 
 	$ctrl.changeVisible = () => {
