@@ -27,7 +27,7 @@
 			</div><!-- End .panel-content -->
 		</section><!-- End .sidebar-panel-->
 
-		<section class="sidebar-panel">
+		<section class="sidebar-panel" ng-if="$ctrl.configuration && $ctrl.configuration.collection && $ctrl.visible && $ctrl.selectedElement && $ctrl.selectedElement.containerType === 'block'">
 			<header class="panel-header" ng-click="$ctrl.toggleSection('cardinality')">
 				<h3>{{ 'Cardinality' | translate }}</h3>
 				<i class="fa" data-ng-class="$ctrl.sections.cardinality ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i>
