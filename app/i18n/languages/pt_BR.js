@@ -179,5 +179,18 @@ export default {
 	'Star on Github': 'Dê uma estrela',
 	'Donate': 'Doar',
 	'Note': 'Anotação',
-	'Color': 'Cor'
+	'Color': 'Cor',
+	'Minimum': 'Mínimo',
+	'Maximum': 'Máximo',
+	'min.': 'mín.',
+	'max.': 'máx.',
+	'Use N for unlimited': 'Use N para ilimitado',
+	'Collection properties': 'Propriedades da coleção',
+	'Collection cardinality': 'Cardinalidade da coleção',
+	'Attributes': 'Atributos',
+	'No attributes yet': 'Nenhum atributo ainda',
+	'Enter attribute name': 'Digite o nome do atributo',
+	'int': 'int',
+	'string': 'string',
+	'float': 'float'
 };

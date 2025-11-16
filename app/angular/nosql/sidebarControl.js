@@ -45,13 +45,23 @@ const configurator = () => {
 const controller = function ($rootScope, $timeout) {
 	const $ctrl = this;
 	$ctrl.visible = true;
-	$ctrl.selectedElement = {};
+	$ctrl.selectedElement = null;
+
+	$ctrl.sections = {
+		tableProperties: true,
+		cardinality: false,
+		attributes: false,
+	};
 
 	$rootScope.$on("command:openmenu", () => {
 		$timeout(() => {
 			$ctrl.visible = true;
 		});
 	});
+
+	$ctrl.toggleSection = (section) => {
+		$ctrl.sections[section] = !$ctrl.sections[section];
+	};
 
 	$ctrl.$onInit = () => {
 		$ctrl.configuration = configurator().emptyState();
@@ -194,15 +204,18 @@ const controller = function ($rootScope, $timeout) {
 
 		const selected = incoming.model || incoming;
 
-		if (selected && selected.attributes && selected.attributes.containerType) {
+		if (selected && selected.attributes) {
 			try {
-				selected.containerType = selected.attributes.containerType;
+				selected.name = selected.attr("headerText/text");
+				if(selected.attributes.containerType) {
+					selected.containerType = selected.attributes.containerType;
+				}
 			} catch (e) {
 				console.error(e);
 			}
 		}
 
-		$ctrl.selectedElement = selected;
+		$ctrl.selectedElement = selected;		
 	};
 
 	$ctrl.changeVisible = () => {

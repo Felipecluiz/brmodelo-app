@@ -63,6 +63,7 @@
 							<td ng-click="$ctrl.openModel(model)">
 								<icon-conceptual ng-if="model.type === 'conceptual'" aria-hidden="true"></icon-conceptual>
 								<icon-logic ng-if="model.type === 'logic'" aria-hidden="true"></icon-logic>
+								<icon-document ng-if="model.type === 'nosql'" aria-hidden="true"></icon-document>
 								<span>{{model.typeName}}</span>
 							</td>
 							<td ng-click="$ctrl.openModel(model)">

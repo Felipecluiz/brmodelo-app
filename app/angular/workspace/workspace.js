@@ -11,6 +11,7 @@ import githubSponsorBanner from "../components/githubSponsorBanner";
 import shareModelModal from "../components/shareModelModal";
 import iconConceptual from  "../components/icons/conceptual";
 import iconLogic from  "../components/icons/logic";
+import iconDocument from  "../components/icons/document";
 
 const ListController = function (
 	$state,
@@ -51,10 +52,13 @@ const ListController = function (
 		switch(model.type) {
 			case "conceptual":
 				model.typeName = $filter('translate')("Conceptual");
+				break;
 			case "logic":
 				model.typeName = $filter('translate')("Logical");
+				break;
 			case "nosql":
 				model.typeName = $filter('translate')("NoSQL");
+				break;
 			default:
 				model.typeName = "";
 		}
@@ -234,7 +238,8 @@ export default angular
 		githubSponsorBanner,
 		shareModelModal,
 		iconConceptual,
-		iconLogic
+		iconLogic,
+		iconDocument
 	])
 	.component("workspace", {
 		template,
