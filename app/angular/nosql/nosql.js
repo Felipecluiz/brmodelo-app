@@ -1650,15 +1650,6 @@ const controller = function (
 			}
 
 			const collectionDestination = model;
-			if (
-				typeof isCollection === "function" &&
-				!isCollection(collectionDestination)
-			) {
-				alert(
-					"O atributo de referência só pode ser adicionado a coleções. Selecione uma coleção como destino.",
-				);
-				return;
-			}
 
 			const sourceName =
 				selectedReferenceCollection.attr &&
