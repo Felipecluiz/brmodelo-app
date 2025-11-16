@@ -386,54 +386,7 @@ const controller = function (
 				console.error(error);
 			});
 	};
-
-	ctrl.convertModel = (conceptualModel) => {
-		const model = {
-			name: conceptualModel.name + $filter("translate")("_converted"),
-			user: $rootScope.loggeduser,
-			type: "logic",
-			model: '{"cells":[]}',
-		};
-		ModelAPI.saveModel(model).then((newModel) => {
-			window.open(
-				$state.href("logic", {
-					references: {
-						modelid: newModel._id,
-						conversionId: conceptualModel._id,
-					},
-				}),
-				"_blank",
-			);
-		});
-	};
-
-	ctrl.shareModel = (model) => {
-		const modalInstance = $uibModal.open({
-			animation: true,
-			backdrop: "static",
-			keyboard: false,
-			template:
-				'<share-model-modal close="$close(result)" dismiss="$dismiss()" model-id="$ctrl.modelId"></share-model-modal>',
-			controller: function () {
-				const $ctrl = this;
-				$ctrl.modelId = model._id;
-			},
-			controllerAs: "$ctrl",
-		}).result;
-		modalInstance
-			.then(() => {
-				ctrl.showFeedback(
-					true,
-					$filter("translate")(
-						"Sharing configuration has been updated successfully!",
-					),
-				);
-			})
-			.catch((reason) => {
-				console.log("Modal dismissed with reason", reason);
-			});
-	};
-
+	
 	ctrl.unselectAll = () => {
 		ctrl.showFeedback(false, "");
 		ctrl.onSelectElement(null);
