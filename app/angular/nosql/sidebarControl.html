@@ -9,9 +9,16 @@
 	<!-- Collection properties -->
 	<div class="properties-content" ng-if="$ctrl.selectedElement != null">
 		<section class="sidebar-panel">
-			<header class="panel-header" ng-click="$ctrl.toggleSection('tableProperties')">
+			<header
+				class="panel-header"
+				ng-click="$ctrl.toggleSection('tableProperties')"
+			>
 				<h3>{{ 'Collection properties' | translate }}</h3>
-				<i class="fa" data-ng-class="$ctrl.sections.tableProperties ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i>
+				<i
+					class="fa"
+					data-ng-class="$ctrl.sections.tableProperties ? 'fa-chevron-up' : 'fa-chevron-down'"
+					aria-hidden="true"
+				></i>
 			</header>
 			<div class="panel-content" ng-show="$ctrl.sections.tableProperties">
 				<div class="form-group">
@@ -21,16 +28,29 @@
 						type="text"
 						class="form-control"
 						data-ng-model="$ctrl.selectedElement.name"
-						ng-change="$ctrl.updateName($ctrl.selectedElement.name)" autofocus
+						ng-change="$ctrl.updateName($ctrl.selectedElement.name)"
+						autofocus
 					/>
 				</div>
-			</div><!-- End .panel-content -->
-		</section><!-- End .sidebar-panel-->
+			</div>
+			<!-- End .panel-content -->
+		</section>
+		<!-- End .sidebar-panel-->
 
-		<section class="sidebar-panel" ng-if="$ctrl.configuration && $ctrl.configuration.collection && $ctrl.visible && $ctrl.selectedElement && $ctrl.selectedElement.containerType === 'block'">
-			<header class="panel-header" ng-click="$ctrl.toggleSection('cardinality')">
+		<section
+			class="sidebar-panel"
+			ng-if="$ctrl.configuration && $ctrl.configuration.collection && $ctrl.visible && $ctrl.selectedElement && $ctrl.selectedElement.containerType === 'block'"
+		>
+			<header
+				class="panel-header"
+				ng-click="$ctrl.toggleSection('cardinality')"
+			>
 				<h3>{{ 'Cardinality' | translate }}</h3>
-				<i class="fa" data-ng-class="$ctrl.sections.cardinality ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i>
+				<i
+					class="fa"
+					data-ng-class="$ctrl.sections.cardinality ? 'fa-chevron-up' : 'fa-chevron-down'"
+					aria-hidden="true"
+				></i>
 			</header>
 			<div class="panel-content" ng-show="$ctrl.sections.cardinality">
 				<div class="collection-cardinality">
@@ -49,7 +69,8 @@
 						class="cardinality-options card-item"
 						ng-if="$ctrl.selectedElement.cardinalityEnabled"
 					>
-						<label>{{ 'Minimum' | translate }}
+						<label
+							>{{ 'Minimum' | translate }}
 							<input
 								type="number"
 								min="0"
@@ -59,7 +80,8 @@
 								placeholder="{{ 'min.' | translate }}"
 							/>
 						</label>
-						<label>{{ 'Maximum' | translate }}
+						<label
+							>{{ 'Maximum' | translate }}
 							<input
 								type="text"
 								class="form-control"
@@ -71,20 +93,30 @@
 							/>
 							<small>{{ 'Use N for unlimited' | translate }}</small>
 						</label>
-					</div><!-- End .cardinality-options -->
-				</div><!-- End .collection-cardinality-->
-			</div><!-- End .panel-content -->
-		</section><!-- End .sidebar-panel-->
+					</div>
+					<!-- End .cardinality-options -->
+				</div>
+				<!-- End .collection-cardinality-->
+			</div>
+			<!-- End .panel-content -->
+		</section>
+		<!-- End .sidebar-panel-->
 
 		<section class="sidebar-panel">
 			<header class="panel-header" ng-click="$ctrl.toggleSection('attributes')">
 				<h3>{{ 'Attributes' | translate }}</h3>
-				<i class="fa" data-ng-class="$ctrl.sections.attributes ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i>
+				<i
+					class="fa"
+					data-ng-class="$ctrl.sections.attributes ? 'fa-chevron-up' : 'fa-chevron-down'"
+					aria-hidden="true"
+				></i>
 			</header>
 			<div class="panel-content" ng-show="$ctrl.sections.attributes">
-
 				<!-- List of existing attributes -->
-				<div class="attributes-list" ng-show="$ctrl.getCustomAttributes().length > 0">
+				<div
+					class="attributes-list"
+					ng-show="$ctrl.getCustomAttributes().length > 0"
+				>
 					<div
 						class="attribute-item"
 						ng-class="{expanded: attr.expanded}"
@@ -92,13 +124,23 @@
 						ng-init="attr.expanded = false"
 					>
 						<!-- Compact summary view -->
-						<div class="attribute-item-summary" ng-click="attr.expanded = !attr.expanded">
+						<div
+							class="attribute-item-summary"
+							ng-click="attr.expanded = !attr.expanded"
+						>
 							<span class="attribute-name">{{ attr.name }}</span>
 							<span class="attribute-type">{{ attr.type }}</span>
-							<span class="attribute-cardinality" ng-if="attr.cardinalityEnabled">
-								({{ attr.minCardinality || 0 }}, {{ attr.maxCardinality || 'n' }})
+							<span
+								class="attribute-cardinality"
+								ng-if="attr.cardinalityEnabled"
+							>
+								({{ attr.minCardinality || 0 }}, {{ attr.maxCardinality || 'n'
+								}})
 							</span>
-							<i class="fa fa-chevron-down expand-icon" ng-class="{expanded: attr.expanded}"></i>
+							<i
+								class="fa fa-chevron-down expand-icon"
+								ng-class="{expanded: attr.expanded}"
+							></i>
 						</div>
 
 						<!-- Expanded edit form -->
@@ -119,6 +161,7 @@
 									<option value="int">{{ 'int' | translate }}</option>
 									<option value="string">{{ 'string' | translate }}</option>
 									<option value="float">{{ 'float' | translate }}</option>
+									<option value="array">{{ 'array' | translate }}</option>
 								</select>
 							</div>
 
@@ -187,6 +230,7 @@
 									<option value="int">{{ 'int' | translate }}</option>
 									<option value="string">{{ 'string' | translate }}</option>
 									<option value="float">{{ 'float' | translate }}</option>
+									<option value="array">{{ 'array' | translate }}</option>
 								</select>
 							</div>
 						</div>
@@ -194,7 +238,9 @@
 						<div class="card-item">
 							<div class="column-form">
 								<div class="checkbox-header">
-									<label for="enable-attribute-cardinality">{{ 'Cardinality' | translate }}</label>
+									<label for="enable-attribute-cardinality"
+										>{{ 'Cardinality' | translate }}</label
+									>
 									<input
 										id="enable-attribute-cardinality"
 										type="checkbox"
@@ -203,9 +249,10 @@
 								</div>
 								<div
 									class="cardinality-options mt12"
-										ng-if="$ctrl.newAttributeCardinalityEnabled"
+									ng-if="$ctrl.newAttributeCardinalityEnabled"
 								>
-									<label>{{ 'Minimum' | translate }}
+									<label
+										>{{ 'Minimum' | translate }}
 										<input
 											type="number"
 											min="0"
@@ -214,7 +261,8 @@
 											placeholder="{{ 'min.' | translate }}"
 										/>
 									</label>
-									<label>{{ 'Maximum' | translate }}
+									<label
+										>{{ 'Maximum' | translate }}
 										<input
 											type="text"
 											class="form-control"
@@ -225,9 +273,12 @@
 										/>
 										<small>{{ 'Use N for unlimited' | translate }}</small>
 									</label>
-								</div><!-- End .cardinality-options -->
-							</div><!-- End .column-form -->
-						</div><!-- End .card-item -->
+								</div>
+								<!-- End .cardinality-options -->
+							</div>
+							<!-- End .column-form -->
+						</div>
+						<!-- End .card-item -->
 
 						<div class="actions">
 							<button
@@ -236,11 +287,16 @@
 							>
 								{{ 'Add' | translate }}
 							</button>
-						</div><!-- End .actions -->
-
-					</div><!-- End .column-form -->
-				</div><!-- End. card-item-->
-			</div><!-- End .panel-content -->
-		</section><!-- End .sidebar-panel-->
-	</div><!-- End .properties-content-->
+						</div>
+						<!-- End .actions -->
+					</div>
+					<!-- End .column-form -->
+				</div>
+				<!-- End. card-item-->
+			</div>
+			<!-- End .panel-content -->
+		</section>
+		<!-- End .sidebar-panel-->
+	</div>
+	<!-- End .properties-content-->
 </aside>
