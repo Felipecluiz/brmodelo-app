@@ -187,7 +187,7 @@ export default {
 	'max.': 'max.',
 	'Use N for unlimited': 'Use N for unlimited',
 	'Collection properties': 'Collection properties',
-	'Collection cardinality': 'Collection cardinality',
+	'Block cardinality': 'Block cardinality',
 	'Attributes': 'Attributes',
 	'No attributes yet': 'No attributes yet',
 	'Enter attribute name': 'Enter attribute name',
